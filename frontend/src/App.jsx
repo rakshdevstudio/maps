@@ -1,37 +1,66 @@
-import { useState } from 'react'
-import { Sidebar } from '@/components/Sidebar'
-import Dashboard from '@/pages/Dashboard'
-import Keywords from '@/pages/Keywords'
+import { useState } from "react";
+import { Toaster } from "sonner";
 
-import { Toaster } from 'sonner'
+import { Sidebar } from "@/components/Sidebar";
+import Dashboard from "@/pages/Dashboard";
+import Keywords from "@/pages/Keywords";
+import Settings from "@/pages/Settings";
 
-function App() {
-  const [activeTab, setActiveTab] = useState("dashboard")
 
-  return (
-    <div className="flex h-screen bg-[#0B0F1A] text-white">
-      <Toaster position="top-right" theme="dark" />
-      {/* Background Gradient Ambience */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-indigo-500/10 blur-[120px]" />
-        <div className="absolute top-[40%] right-[0%] w-[40%] h-[40%] rounded-full bg-purple-500/10 blur-[120px]" />
-      </div>
+const TABS = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "keywords", label: "Keywords" },
+  { id: "settings", label: "Settings" },
+];
 
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      <main className="flex-1 overflow-y-auto p-8 relative z-10">
-        <div className="max-w-7xl mx-auto">
-          {activeTab === "dashboard" && <Dashboard />}
-          {activeTab === "keywords" && <Keywords />}
-          {activeTab === "settings" && (
-            <div className="flex items-center justify-center h-[50vh] text-muted-foreground">
-              Settings module coming soon...
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  )
+function renderTab(activeTab) {
+  if (activeTab === "keywords") {
+    return <Keywords />;
+  }
+  if (activeTab === "settings") {
+    return <Settings />;
+  }
+  return <Dashboard />;
 }
 
-export default App
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState("dashboard");
+
+  return (
+    <div className="min-h-screen bg-[#050816] text-white">
+      <Toaster position="top-right" theme="dark" richColors />
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute left-[-10%] top-[-8%] h-[28rem] w-[28rem] rounded-full bg-cyan-500/12 blur-[140px]" />
+        <div className="absolute bottom-[-12%] right-[-8%] h-[32rem] w-[32rem] rounded-full bg-blue-500/10 blur-[160px]" />
+      </div>
+
+      <div className="relative z-10 flex min-h-screen">
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+
+        <main className="flex-1 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-6 flex gap-2 overflow-x-auto lg:hidden">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                    activeTab === tab.id
+                      ? "bg-cyan-400/15 text-cyan-200"
+                      : "bg-white/5 text-slate-400"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {renderTab(activeTab)}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

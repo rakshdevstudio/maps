@@ -1,83 +1,95 @@
-import React from "react";
-import { controlScraper } from "../services/api";
-import { toast } from "sonner";
-import { Play, Pause, Square, RefreshCw } from "lucide-react";
+import { Pause, Play, RotateCcw, Square } from "lucide-react";
 
-export default function ControlPanel({ status, isLoading }) {
-    const handleControl = async (action) => {
-        try {
-            await controlScraper(action);
-            toast.success(`Sent command: ${action}`);
-        } catch (error) {
-            toast.error(`Failed to ${action} scraper`);
-        }
-    };
 
-    const isRunning = status === "running";
-    const isPaused = status === "paused";
-    const isIdle = status === "idle" || status === "stopped" || status === "error";
+function ActionButton({ onClick, disabled, tone, icon: Icon, children }) {
+  const toneClass =
+    tone === "green"
+      ? "bg-emerald-500/90 hover:bg-emerald-400"
+      : tone === "amber"
+        ? "bg-amber-500/90 hover:bg-amber-400"
+        : tone === "red"
+          ? "bg-rose-500/90 hover:bg-rose-400"
+          : "bg-slate-700 hover:bg-slate-600";
 
-    if (isLoading) return <div className="animate-pulse h-16 bg-gray-100 rounded-lg"></div>;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold text-white transition ${
+        disabled ? "cursor-not-allowed bg-slate-800/70 text-slate-500" : toneClass
+      }`}
+    >
+      <Icon className="h-4 w-4" />
+      {children}
+    </button>
+  );
+}
 
-    return (
-        <div className="flex flex-wrap gap-4 items-center p-4 bg-white rounded-lg shadow-sm border border-gray-100 dark:bg-gray-800 dark:border-gray-700">
-            <h3 className="text-lg font-semibold min-w-32">Controls</h3>
 
-            {/* Start Button */}
-            <button
-                onClick={() => handleControl("start")}
-                disabled={!isIdle}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${isIdle
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-700"
-                    }`}
-            >
-                <Play size={18} /> Start
-            </button>
+export default function ControlPanel({
+  status,
+  currentKeyword,
+  activeWorkers,
+  busyAction,
+  onControl,
+}) {
+  const isRunning = status === "running";
+  const isPaused = status === "paused";
+  const canStart = ["idle", "stopped", "completed", "error"].includes(status);
 
-            {/* Pause/Resume Button */}
-            {isPaused ? (
-                <button
-                    onClick={() => handleControl("resume")}
-                    className="flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                >
-                    <Play size={18} /> Resume
-                </button>
-            ) : (
-                <button
-                    onClick={() => handleControl("pause")}
-                    disabled={!isRunning}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${isRunning
-                        ? "bg-amber-500 text-white hover:bg-amber-600"
-                        : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-700"
-                        }`}
-                >
-                    <Pause size={18} /> Pause
-                </button>
-            )}
-
-            {/* Stop Button */}
-            <button
-                onClick={() => handleControl("stop")}
-                disabled={isIdle}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition-colors ${!isIdle
-                    ? "bg-red-600 text-white hover:bg-red-700"
-                    : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-700"
-                    }`}
-            >
-                <Square size={18} /> Stop
-            </button>
-
-            <div className="ml-auto flex items-center gap-2 text-sm text-gray-500">
-                Status:
-                <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${status === "running" ? "bg-green-100 text-green-800" :
-                    status === "paused" ? "bg-amber-100 text-amber-800" :
-                        status === "error" ? "bg-red-100 text-red-800" :
-                            "bg-gray-100 text-gray-800"
-                    }`}>
-                    {status}
-                </span>
-            </div>
+  return (
+    <div className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-[0_12px_40px_rgba(15,23,42,0.35)]">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/70">
+            Queue Control
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">
+            Live job orchestration
+          </h2>
+          <p className="mt-2 text-sm text-slate-400">
+            {currentKeyword
+              ? `Currently processing: ${currentKeyword}`
+              : "Ready to process queued search terms."}
+          </p>
         </div>
-    );
+
+        <div className="flex flex-wrap items-center gap-3">
+          <ActionButton
+            onClick={() => onControl("start")}
+            disabled={!canStart || busyAction === "start"}
+            tone="green"
+            icon={Play}
+          >
+            Start
+          </ActionButton>
+          <ActionButton
+            onClick={() => onControl(isPaused ? "resume" : "pause")}
+            disabled={!isRunning && !isPaused}
+            tone="amber"
+            icon={isPaused ? RotateCcw : Pause}
+          >
+            {isPaused ? "Resume" : "Pause"}
+          </ActionButton>
+          <ActionButton
+            onClick={() => onControl("stop")}
+            disabled={canStart || busyAction === "stop"}
+            tone="red"
+            icon={Square}
+          >
+            Stop
+          </ActionButton>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">
+        <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-cyan-200">
+          Status: {status}
+        </span>
+        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-300">
+          Active workers: {activeWorkers ?? 0}
+        </span>
+      </div>
+    </div>
+  );
 }

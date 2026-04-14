@@ -1,377 +1,428 @@
 import asyncio
 import random
+import re
 from datetime import datetime
+from typing import Dict, List, Optional
+from urllib.parse import quote
 
-from . import models, database, config
-from .logger import scraper_logger
-from .state import state_manager, ScraperStatus
-from .data_saver import DataSaver
 from .browser_pool import browser_pool
 
 
+RATING_REGEX = re.compile(r"([0-9]+(?:\.[0-9]+)?)")
+PLACE_ID_REGEX = re.compile(r"!1s([^!]+)!")
+
+
+def _normalize_maps_url(url: str) -> str:
+    if not url:
+        return url
+    return url.split("&authuser=")[0].split("?hl=")[0].rstrip("/")
+
+
+def _extract_place_id(url: str) -> Optional[str]:
+    if not url:
+        return None
+    match = PLACE_ID_REGEX.search(url)
+    return match.group(1) if match else None
+
+
 class ScraperEngine:
-    """
-    Worker engine that performs the scraping logic (ASYNC).
-    Managed by ScraperManager. Uses AsyncBrowserPool for resources.
-    """
+    def _classify_failure_reason(self, message: str) -> str:
+        text = (message or "").lower()
+        if "captcha" in text or "unusual traffic" in text:
+            return "Blocked by Google"
+        if "throttle" in text or "rate limit" in text or "too many requests" in text:
+            return "Rate limited"
+        if "no business urls" in text or "empty results" in text:
+            return "No results found"
+        if "timeout" in text:
+            return "Timeout"
+        return "Unknown scraping error"
 
-    def __init__(self):
-        self.db_session = None
-        self.data_saver = None
-        self.context = None
-        self.page = None  # Only used for search listing
-        self._stop_event = None  # Managed by caller or simple boolean flag in loop
+    async def scrape_keyword(self, keyword: str, settings: dict, runtime) -> Dict:
+        max_retries = settings.get("max_retries", 3)
+        last_error = None
+        current_delay_ms = int(settings.get("delay_between_requests_ms", 1500))
+        adaptive_enabled = bool(settings.get("adaptive_delay_enabled", True))
+        adaptive_max_ms = int(settings.get("adaptive_delay_max_ms", 8000))
 
-    def _log(self, message, level="INFO"):
-        if level == "ERROR":
-            scraper_logger.error(message)
-        else:
-            scraper_logger.info(message)
-        print(f"[{level}] {message}")
-        try:
-            entry = {
-                "timestamp": datetime.now().strftime("%H:%M:%S"),
-                "message": message,
-                "level": level,
-            }
-            # state_manager.log_queue is a SyncQueue, might need wrapper or direct DB
-            # For now, we assume state_manager handles this thread-safely or we just push to DB
-            state_manager.log_queue.put(entry)
-        except:
-            pass
-        if self.db_session:
+        for attempt in range(1, max_retries + 1):
+            if runtime.should_stop():
+                return {"status": "pending", "saved": 0, "duplicates": 0}
+
+            context = page = None
             try:
-                log = models.LogEntry(message=message, level=level)
-                self.db_session.add(log)
-                self.db_session.commit()
-            except:
-                self.db_session.rollback()
+                runtime.log(f"[{keyword}] launch attempt {attempt}/{max_retries}")
+                context, page = await browser_pool.get_context(settings)
+                result = await self._run_keyword(
+                    keyword,
+                    settings,
+                    runtime,
+                    page,
+                    context,
+                    current_delay_ms,
+                )
+                result["attempts"] = attempt
+                return result
+            except Exception as exc:
+                last_error = str(exc)
+                reason = self._classify_failure_reason(last_error)
+                runtime.log(
+                    f"[{keyword}] attempt {attempt} failed: {reason} ({last_error})",
+                    level="WARNING",
+                )
+                await browser_pool.restart(settings)
+                if adaptive_enabled and reason in {"Blocked by Google", "Rate limited"}:
+                    current_delay_ms = min(int(current_delay_ms * 1.5), adaptive_max_ms)
+                    runtime.log(
+                        f"[{keyword}] adaptive delay increased to {current_delay_ms}ms",
+                        level="WARNING",
+                    )
+                await asyncio.sleep(min(3 * attempt, 8))
+            finally:
+                if context or page:
+                    await browser_pool.release_context(context, page)
 
-    async def run(self):
-        """
-        Main Async Loop.
-        Caller expects this to run until no keywords left or stopped.
-        """
-        self.db_session = database.SessionLocal()
-        # Initialize stop check based on state_manager
+        return {
+            "status": "failed",
+            "saved": 0,
+            "duplicates": 0,
+            "error": self._classify_failure_reason(last_error or "Unknown scraping error"),
+        }
 
-        try:
-            dataset_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            self.data_saver = DataSaver(dataset_id, batch_size=10)
-            self._log(f"📋 Job Started (Async). Dataset: {dataset_id}")
-            self._recover_stuck_keywords()
-            self._log("Debug: Stuck keywords recovered", level="DEBUG")
+    async def _run_keyword(self, keyword: str, settings: dict, runtime, page, context, delay_ms: int):
+        timeout_ms = settings.get("page_timeout_ms", 45000)
+        max_results = settings.get("max_results_per_keyword", 20)
+        scroll_depth_limit = int(settings.get("scroll_depth_limit", 12))
+        stop_on_duplicate = bool(settings.get("stop_on_duplicate_results", True))
+        duplicate_stop_threshold = int(settings.get("duplicate_stop_threshold", 5))
 
-            while True:
-                # Check status
-                if state_manager.get_state()["status"] == ScraperStatus.STOPPED:
-                    break
+        search_url = f"https://www.google.com/maps/search/{quote(keyword)}?hl=en"
+        await page.goto(search_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        await self._handle_consent(page)
+        await self._wait_for_results_ready(page, timeout_ms)
+        await self._assert_not_blocked(page)
 
-                await self._check_pause()
+        urls = await self._collect_result_urls(
+            page=page,
+            max_results=max_results,
+            runtime=runtime,
+            scroll_depth_limit=scroll_depth_limit,
+        )
+        if not urls and "/maps/place/" in page.url:
+            urls = [_normalize_maps_url(page.url)]
 
-                # Check DB for next keyword
-                # DB Access is sync, so we keep it direct for now (fast enough) or use run_in_executor if blocking
-                keyword_obj = self._get_next_keyword()
+        if not urls:
+            raise RuntimeError("Empty results")
 
-                if not keyword_obj:
-                    self._log("Debug: No pending keywords. Waiting...", level="DEBUG")
-                    await asyncio.sleep(2)
+        saved = 0
+        duplicates = 0
+        duplicate_streak = 0
+
+        for position, url in enumerate(urls[:max_results], start=1):
+            await runtime.wait_if_paused()
+            if runtime.should_stop():
+                return {"status": "pending", "saved": saved, "duplicates": duplicates}
+
+            detail_page = await context.new_page()
+            try:
+                business = await self._extract_business(
+                    detail_page=detail_page,
+                    url=url,
+                    keyword=keyword,
+                    timeout_ms=timeout_ms,
+                )
+                if not business:
+                    runtime.log(
+                        f"[{keyword}] skipped empty profile for result {position}",
+                        level="WARNING",
+                    )
                     continue
 
-                # Process
-                await self._process_keyword(keyword_obj.text, keyword_obj)
-
-                # Post-process check
-                if state_manager.get_state()["status"] == ScraperStatus.STOPPED:
-                    break
-
-                self._log("Debug: Throttling...", level="DEBUG")
-                await self._throttle_delay()
-
-        except asyncio.CancelledError:
-            self._log("🛑 Scraper task cancelled", level="WARNING")
-        except Exception as e:
-            self._log(f"🔥 Engine Critical Failure: {e}", level="ERROR")
-        finally:
-            if self.data_saver:
-                self.data_saver.flush_all()
-            if self.db_session:
-                self.db_session.close()
-
-    async def _process_keyword(self, k, keyword_obj):
-        state_manager.update_progress(k)
-        self._log(f"Processing Keyword: {k}")
-        keyword_obj.status = models.KeywordStatus.PROCESSING
-        self.db_session.commit()
-
-        try:
-            # 1. Get Context (Async)
-            self.context, self.page = await browser_pool.get_context()
-
-            # 2. Perform Work
-            try:
-                # Clear cookies
-                try:
-                    await self.context.clear_cookies()
-                except:
-                    pass
-
-                # Navigation
-                await self.page.goto("https://www.google.com/maps", timeout=15000)
-                await self._handle_consent()
-
-                await self._perform_scraping(k)
-
-                keyword_obj.status = models.KeywordStatus.DONE
-                self._log(f"✅ Keyword '{k}' COMPLETED")
-
-            except Exception as e:
-                self._log(f"⚠️ Keyword '{k}' incomplete: {e}", level="WARNING")
-                keyword_obj.status = models.KeywordStatus.DONE  # Forced completion
-
-        except Exception as e:
-            if "THROTTLED" in str(e) or "Unusual traffic" in str(e):
-                self._log(f"🛑 Throttling detected: {e}", level="WARNING")
-                keyword_obj.status = models.KeywordStatus.THROTTLED
-                await asyncio.sleep(10)
-            else:
-                self._log(f"❌ Critical Context Error: {e}", level="ERROR")
-                keyword_obj.status = models.KeywordStatus.FAILED
-        finally:
-            if keyword_obj.status in [
-                models.KeywordStatus.PENDING,
-                models.KeywordStatus.PROCESSING,
-            ]:
-                keyword_obj.status = models.KeywordStatus.FAILED
-            self.db_session.commit()
-
-            # Context Cleanup
-            if self.context:
-                await browser_pool.release_context(self.context, self.page)
-            self.context = None
-            self.page = None
-
-    async def _perform_scraping(self, k):
-        # Search Box
-        try:
-            await self.page.wait_for_selector("input", timeout=8000)
-            sb = self.page.locator("input#searchboxinput")
-            if not await sb.is_visible():
-                sb = self.page.get_by_role("combobox", name="Search Google Maps")
-            if not await sb.is_visible():
-                sb = self.page.locator('input[aria-label="Search Google Maps"]')
-            if not await sb.is_visible():
-                inputs = await self.page.locator("input").all()
-                for i in inputs:
-                    if await i.is_visible():
-                        sb = i
+                outcome = runtime.save_business(business)
+                if outcome == "saved":
+                    saved += 1
+                    duplicate_streak = 0
+                    runtime.log(
+                        f"[{keyword}] saved {business['name']}",
+                        level="INFO",
+                    )
+                elif outcome == "duplicate":
+                    duplicates += 1
+                    duplicate_streak += 1
+                    runtime.log(
+                        f"[{keyword}] duplicate skipped {business['name']}",
+                        level="DEBUG",
+                    )
+                    if stop_on_duplicate and duplicate_streak >= duplicate_stop_threshold:
+                        runtime.log(
+                            f"[{keyword}] duplicate threshold reached; stopping keyword early",
+                            level="WARNING",
+                        )
                         break
-
-            await sb.fill(str(k))
-            await self.page.keyboard.press("Enter")
-            await self.page.wait_for_timeout(3000)
-
-            # Throttling Check
-            if await self.page.locator('text="Unusual traffic"').count() > 0:
-                raise Exception("THROTTLED: Unusual traffic detected")
-        except Exception as e:
-            raise Exception(f"Search failed: {e}")
-
-        # Collection Loop
-        collected_urls = set()
-        scroll_attempts = 0
-        max_scrolls = 6
-
-        while scroll_attempts < max_scrolls:
-            await self._check_pause()
-
-            await self._scroll_to_bottom()
-            urls = await self._get_business_urls()
-            new_urls = [u for u in urls if u not in collected_urls]
-            collected_urls.update(new_urls)
-            self._log(f"Collected {len(collected_urls)} URLs")
-
-            if not new_urls and collected_urls:
-                break
-            if not new_urls and "/maps/place/" in self.page.url:
-                collected_urls.add(self.page.url)
-                break
-
-            # STRICT CAP: 20
-            if len(collected_urls) >= 20:
-                self._log(
-                    "Debug: Hit max URL cap (20). Stopping collection.", level="DEBUG"
-                )
-                break
-
-            next_btn = self.page.locator('button[aria-label="Next page"]')
-            if await next_btn.is_visible() and await next_btn.is_enabled():
-                await next_btn.click()
-                await self.page.wait_for_timeout(2000)
-            else:
-                scroll_attempts += 1
-                if not new_urls:
-                    break
-
-        # Extraction Loop
-        urls_list = list(collected_urls)[:20]
-
-        for idx, url in enumerate(urls_list):
-            await self._check_pause()
-            detail_page = None
-            try:
-                # OPEN FRESH PAGE
-                detail_page = await self.context.new_page()
-
-                details = await self._extract_detail_info(detail_page, url)
-                if details:
-                    details["Keyword"] = k
-                    if self.data_saver:
-                        # DataSaver is sync but thread-safe enough, or we can offload
-                        self.data_saver.save_business(details)
-
-                await asyncio.sleep(random.uniform(1, 2))
-
-            except Exception as e:
-                self._log(f"Extraction error for {url}: {e}", level="WARNING")
             finally:
-                if detail_page:
-                    try:
-                        await detail_page.close()
-                    except:
-                        pass
+                await detail_page.close()
 
-    async def _extract_detail_info(self, page, url):
-        self._log(f"🔍 Extracting: {url}", level="DEBUG")
-        data = {"Name": "", "Address": "", "Connect": "", "Website": ""}
-        try:
+            await asyncio.sleep(
+                max(0, delay_ms / 1000) + random.uniform(0.25, 1.1)
+            )
+
+        return {"status": "done", "saved": saved, "duplicates": duplicates}
+
+    async def _handle_consent(self, page):
+        consent_selectors = [
+            'button:has-text("Accept all")',
+            'button[aria-label="Accept all"]',
+            'button:has-text("I agree")',
+        ]
+        for selector in consent_selectors:
             try:
-                await page.goto(url, timeout=15000, wait_until="domcontentloaded")
-            except Exception as e:
-                self._log(f"   -> Page load timed out (Skipping)", level="WARNING")
-                return None
+                locator = page.locator(selector)
+                if await locator.count():
+                    await locator.first.click(timeout=3000)
+                    await page.wait_for_timeout(1000)
+                    return
+            except Exception:
+                continue
 
-            # 1. Wait for Name Element
+    async def _wait_for_results_ready(self, page, timeout_ms: int):
+        selectors = [
+            'div[role="feed"]',
+            'a[href*="/maps/place/"]',
+            "h1.DUwDvf",
+            "h1",
+        ]
+        for selector in selectors:
             try:
-                await page.wait_for_selector(
-                    "h1.DUwDvf", state="attached", timeout=4000
-                )
-            except:
-                pass
+                await page.wait_for_selector(selector, timeout=timeout_ms // 2)
+                return
+            except Exception:
+                continue
+        raise RuntimeError("Google Maps results did not load")
 
-            # 2. Extract Name
-            name = ""
-            if await page.locator("h1.DUwDvf").count() > 0:
-                name = (await page.locator("h1.DUwDvf").first.inner_text()).strip()
-            elif await page.locator("h1").count() > 0:
-                name = (await page.locator("h1").first.inner_text()).strip()
+    async def _assert_not_blocked(self, page):
+        page_text = (await page.content()).lower()
+        blocked_markers = [
+            "unusual traffic",
+            "sorry, but you have been sending automated queries",
+            "captcha",
+        ]
+        if any(marker in page_text for marker in blocked_markers):
+            raise RuntimeError("Google Maps throttled or blocked the scraper")
 
-            # 3. SHELL PAGE DETECTION
-            if not name or name in ["Google Maps", "Maps"]:
-                self._log(
-                    f"   -> SHELL PAGE DETECTED ('{name}'). SKIPPING.", level="WARNING"
-                )
-                return None
+    async def _collect_result_urls(self, page, max_results: int, runtime, scroll_depth_limit: int) -> List[str]:
+        seen = []
+        stalled_rounds = 0
+        previous_count = 0
+        scroll_rounds = 0
 
-            data["Name"] = name
-            self._log(f"   -> Found Name: {name}", level="DEBUG")
+        while len(seen) < max_results and stalled_rounds < 4 and scroll_rounds < max(1, scroll_depth_limit):
+            urls = await page.locator('a[href*="/maps/place/"]').evaluate_all(
+                """
+                anchors => anchors
+                  .map(anchor => anchor.href)
+                  .filter(Boolean)
+                """
+            )
+            cleaned = []
+            for url in urls:
+                normalized = _normalize_maps_url(url)
+                if "/maps/place/" not in normalized:
+                    continue
+                if normalized not in cleaned:
+                    cleaned.append(normalized)
 
-            # 4. Address
-            try:
-                btn = page.locator('button[data-item-id="address"]')
-                if await btn.count() > 0:
-                    lbl = await btn.get_attribute("aria-label") or ""
-                    data["Address"] = lbl.replace("Address: ", "").strip()
-            except:
-                pass
+            for url in cleaned:
+                if url not in seen:
+                    seen.append(url)
 
-            # 5. Website
-            try:
-                link = page.locator('a[data-item-id="authority"]')
-                if await link.count() > 0:
-                    data["Website"] = await link.get_attribute("href")
-            except:
-                pass
+            if len(seen) == previous_count:
+                stalled_rounds += 1
+            else:
+                stalled_rounds = 0
+            previous_count = len(seen)
 
-            # 6. Phone
-            try:
-                btn = page.locator('button[data-item-id^="phone:"]')
-                if await btn.count() > 0:
-                    lbl = await btn.get_attribute("aria-label") or ""
-                    data["Connect"] = lbl.replace("Phone: ", "").strip()
-            except:
-                pass
+            if len(seen) >= max_results:
+                break
 
-        except Exception as e:
-            self._log(f"   -> Failed details: {e}", level="DEBUG")
-
-        return data
-
-    async def _scroll_to_bottom(self):
-        try:
-            feed = self.page.locator('div[role="feed"]')
-            if await feed.count() > 0:
+            feed = page.locator('div[role="feed"]')
+            if await feed.count():
                 await feed.evaluate(
-                    "element => element.scrollTop = element.scrollHeight"
+                    "(element) => { element.scrollTop = element.scrollHeight; }"
                 )
-                await asyncio.sleep(2)
-        except:
+                scroll_rounds += 1
+                await page.wait_for_timeout(1500 + random.randint(200, 900))
+                runtime.log(
+                    f"Collected {len(seen)} URLs so far for active keyword (scroll {scroll_rounds}/{max(1, scroll_depth_limit)})",
+                    level="DEBUG",
+                )
+            else:
+                break
+
+        return seen[:max_results]
+
+    async def _extract_business(self, detail_page, url: str, keyword: str, timeout_ms: int):
+        await detail_page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        await self._wait_for_results_ready(detail_page, timeout_ms)
+        await detail_page.wait_for_timeout(1200)
+
+        name = await self._get_first_text(
+            detail_page,
+            [
+                "h1.DUwDvf",
+                "h1",
+            ],
+        )
+        if not name or name in {"Google Maps", "Maps"}:
+            return None
+
+        rating_text = await self._get_first_attribute(
+            detail_page,
+            [
+                'div.F7nice span[role="img"]',
+                'span[role="img"][aria-label*="stars"]',
+                'div[role="img"][aria-label*="stars"]',
+            ],
+            "aria-label",
+        )
+        rating = None
+        if rating_text:
+            match = RATING_REGEX.search(rating_text)
+            if match:
+                rating = float(match.group(1))
+
+        address = await self._extract_label_value(
+            detail_page,
+            selectors=[
+                'button[data-item-id="address"]',
+                'button[aria-label^="Address:"]',
+            ],
+            prefixes=["Address: "],
+        )
+        phone = await self._extract_label_value(
+            detail_page,
+            selectors=[
+                'button[data-item-id^="phone"]',
+                'button[aria-label^="Phone:"]',
+            ],
+            prefixes=["Phone: ", "Call "],
+        )
+        website = await self._get_first_attribute(
+            detail_page,
+            [
+                'a[data-item-id="authority"]',
+                'a[aria-label^="Website:"]',
+            ],
+            "href",
+        )
+        category = await self._get_first_text(
+            detail_page,
+            [
+                'button[jsaction*="pane.rating.category"]',
+                "button.DkEaL",
+                "div.DkEaL",
+            ],
+        )
+        opening_hours = await self._extract_opening_hours(detail_page)
+
+        return {
+            "keyword": keyword,
+            "name": name,
+            "rating": rating,
+            "address": address,
+            "phone": phone,
+            "website": website,
+            "category": category,
+            "opening_hours": opening_hours,
+            "google_maps_url": _normalize_maps_url(detail_page.url),
+            "place_id": _extract_place_id(detail_page.url),
+            "scraped_at": datetime.utcnow().isoformat(),
+        }
+
+    async def _get_first_text(self, page, selectors: List[str]) -> Optional[str]:
+        for selector in selectors:
+            try:
+                locator = page.locator(selector)
+                if not await locator.count():
+                    continue
+                text = (await locator.first.inner_text(timeout=2000)).strip()
+                if text:
+                    return " ".join(text.split())
+            except Exception:
+                continue
+        return None
+
+    async def _get_first_attribute(
+        self, page, selectors: List[str], attribute: str
+    ) -> Optional[str]:
+        for selector in selectors:
+            try:
+                locator = page.locator(selector)
+                if not await locator.count():
+                    continue
+                value = await locator.first.get_attribute(attribute, timeout=2000)
+                if value:
+                    return value.strip()
+            except Exception:
+                continue
+        return None
+
+    async def _extract_label_value(
+        self, page, selectors: List[str], prefixes: List[str]
+    ) -> Optional[str]:
+        for selector in selectors:
+            try:
+                locator = page.locator(selector)
+                if not await locator.count():
+                    continue
+                for attribute in ["aria-label", "data-tooltip", "title"]:
+                    value = await locator.first.get_attribute(attribute)
+                    if value:
+                        cleaned = value.strip()
+                        for prefix in prefixes:
+                            if cleaned.startswith(prefix):
+                                cleaned = cleaned[len(prefix) :]
+                        if cleaned:
+                            return " ".join(cleaned.split())
+
+                text = (await locator.first.inner_text(timeout=2000)).strip()
+                if text:
+                    return " ".join(text.split())
+            except Exception:
+                continue
+        return None
+
+    async def _extract_opening_hours(self, page) -> Optional[str]:
+        summary = await self._extract_label_value(
+            page,
+            selectors=[
+                'button[data-item-id="oh"]',
+                "div.OqCZI",
+                "div.t39EBf",
+                'div[aria-label*="Hours"]',
+                'div[aria-label*="Open"]',
+            ],
+            prefixes=["Hours: "],
+        )
+        if summary:
+            cleaned_summary = summary.replace("Suggest new hours", "").strip()
+            if cleaned_summary:
+                summary = cleaned_summary
+        if summary and "Open" in summary:
+            return summary
+
+        try:
+            rows = await page.locator("table.eK4R0e tr").all()
+            values = []
+            for row in rows:
+                text = " ".join((await row.inner_text()).split())
+                if text:
+                    values.append(text)
+            if values:
+                return " | ".join(values)
+        except Exception:
             pass
 
-    async def _get_business_urls(self):
-        try:
-            urls = await self.page.locator("a.hfpxzc").evaluate_all(
-                "els => els.map(e => e.href)"
-            )
-            if not urls:
-                urls = await self.page.locator('a[href*="/maps/place/"]').evaluate_all(
-                    "els => els.map(e => e.href)"
-                )
-
-            return [
-                u
-                for u in urls
-                if "/maps/place/" in u and "/photo/" not in u and "/reviews" not in u
-            ]
-        except:
-            return []
-
-    async def _handle_consent(self):
-        try:
-            consent = self.page.locator(
-                'button[aria-label="Accept all"], button:has-text("Accept all")'
-            )
-            if await consent.count() > 0:
-                await consent.first.click()
-        except:
-            pass
-
-    def _recover_stuck_keywords(self):
-        # Sync DB op, safe in simple context or wrap if strictly needed
-        stuck = (
-            self.db_session.query(models.Keyword)
-            .filter(models.Keyword.status == models.KeywordStatus.PROCESSING)
-            .all()
-        )
-        for k in stuck:
-            k.status = models.KeywordStatus.PENDING
-        self.db_session.commit()
-
-    def _get_next_keyword(self):
-        return (
-            self.db_session.query(models.Keyword)
-            .filter(models.Keyword.status == models.KeywordStatus.PENDING)
-            .first()
-        )
-
-    async def _check_pause(self):
-        while state_manager.get_state()["status"] == ScraperStatus.PAUSED:
-            await asyncio.sleep(1)
-
-    async def _throttle_delay(self):
-        await asyncio.sleep(random.uniform(2, 4))
-        state_manager.update_heartbeat()
+        return summary
 
 
-# Singleton Instance (for compatibility, but Main will likely create one)
 scraper_instance = ScraperEngine()

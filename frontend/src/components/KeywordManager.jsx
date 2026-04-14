@@ -1,99 +1,137 @@
-import React, { useEffect } from "react";
-import { useKeywords } from "../hooks/useKeywords";
-import { Upload, Trash2, RefreshCw, FileText, CheckCircle, AlertOctagon, Clock, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
+import { AlertTriangle, CheckCircle2, Clock3, LoaderCircle, RefreshCcw, XCircle } from "lucide-react";
 
-export default function KeywordManager() {
-    const {
-        keywords,
-        loading,
-        pagination,
-        fetchKeywords,
-        uploadFile,
-        resetFailed,
-        resetSkipped,
-        resetAll
-    } = useKeywords();
 
-    useEffect(() => {
-        fetchKeywords(1, 10); // Initial fetch, smaller limit for widget view
-    }, [fetchKeywords]);
+function statusChip(status) {
+  const normalized = (status || "").toLowerCase();
+  if (normalized === "done") {
+    return { label: "Done", className: "bg-emerald-500/15 text-emerald-300", icon: CheckCircle2 };
+  }
+  if (normalized === "processing") {
+    return { label: "Processing", className: "bg-cyan-500/15 text-cyan-300", icon: LoaderCircle };
+  }
+  if (normalized === "failed" || normalized === "throttled") {
+    return { label: normalized, className: "bg-rose-500/15 text-rose-300", icon: XCircle };
+  }
+  if (normalized === "skipped") {
+    return { label: "Skipped", className: "bg-amber-500/15 text-amber-300", icon: AlertTriangle };
+  }
+  return { label: "Pending", className: "bg-slate-500/15 text-slate-300", icon: Clock3 };
+}
 
-    const handleFileUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        await uploadFile(file, "add");
-    };
 
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case "DONE": return <span className="px-2 py-0.5 rounded text-xs font-bold bg-green-100 text-green-800 flex items-center gap-1"><CheckCircle size={10} /> Done</span>;
-            case "FAILED": return <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800 flex items-center gap-1"><AlertOctagon size={10} /> Failed</span>;
-            case "PROCESSING": return <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800 flex items-center gap-1"><RefreshCw size={10} className="animate-spin" /> Processing</span>;
-            case "SKIPPED": return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 flex items-center gap-1"><AlertTriangle size={10} /> Skipped</span>;
-            default: return <span className="px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-600 flex items-center gap-1"><Clock size={10} /> Pending</span>;
-        }
-    };
-
-    return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 dark:bg-gray-800 dark:border-gray-700 flex flex-col h-full">
-            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap justify-between items-center gap-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                    <FileText size={20} /> Keyword Manager
-                </h3>
-
-                <div className="flex gap-2">
-                    <label className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700 cursor-pointer transition-colors">
-                        <Upload size={14} /> Upload CSV
-                        <input type="file" className="hidden" accept=".csv,.xlsx" onChange={handleFileUpload} />
-                    </label>
-                </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700 flex gap-2 overflow-x-auto">
-                <button onClick={resetFailed} className="px-3 py-1 bg-white border border-red-200 text-red-600 rounded text-xs font-medium hover:bg-red-50 flex items-center gap-1">
-                    <RefreshCw size={12} /> Reset Failed
-                </button>
-                <button onClick={resetSkipped} className="px-3 py-1 bg-white border border-amber-200 text-amber-600 rounded text-xs font-medium hover:bg-amber-50 flex items-center gap-1">
-                    <RefreshCw size={12} /> Reset Skipped
-                </button>
-                <button onClick={() => { if (window.confirm('Reset ALL keywords?')) resetAll() }} className="px-3 py-1 bg-white border border-gray-200 text-gray-600 rounded text-xs font-medium hover:bg-gray-50 flex items-center gap-1 ml-auto">
-                    <Trash2 size={12} /> Reset All
-                </button>
-            </div>
-
-            <div className="flex-1 overflow-auto p-0">
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 font-medium sticky top-0">
-                        <tr>
-                            <th className="px-4 py-3">Keyword</th>
-                            <th className="px-4 py-3">City</th>
-                            <th className="px-4 py-3">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                        {keywords?.length > 0 ? (
-                            keywords.map((k) => (
-                                <tr key={k.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                    <td className="px-4 py-2 font-medium">{k.text}</td>
-                                    <td className="px-4 py-2 text-gray-500">{k.city || "-"}</td>
-                                    <td className="px-4 py-2">{getStatusBadge(k.status)}</td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan="3" className="px-4 py-8 text-center text-gray-400">
-                                    {loading ? "Loading..." : "No keywords found"}
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-center text-gray-500">
-                Showing top 10 recent keywords. Visit Keywords page for full list.
-            </div>
+export default function KeywordManager({
+  keywords,
+  maxResultsPerKeyword,
+  onResetFailed,
+  onResetSkipped,
+  onResetAll,
+}) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-slate-950/60 shadow-[0_12px_40px_rgba(15,23,42,0.35)]">
+      <div className="flex flex-col gap-4 border-b border-white/10 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/70">
+            Queue Overview
+          </p>
+          <h3 className="mt-2 text-xl font-semibold text-white">
+            Keyword execution status
+          </h3>
         </div>
-    );
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onResetFailed}
+            className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200 transition hover:bg-rose-400/20"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Reset failed
+          </button>
+          <button
+            onClick={onResetSkipped}
+            className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-400/20"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Reset skipped
+          </button>
+          <button
+            onClick={onResetAll}
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Reset queue
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-slate-500">
+            <tr>
+              <th className="px-6 py-4">Keyword</th>
+              <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4">Businesses</th>
+              <th className="px-6 py-4">Progress</th>
+              <th className="px-6 py-4">Time started</th>
+              <th className="px-6 py-4">Est. completion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(keywords || []).length > 0 ? (
+              keywords.map((keyword) => {
+                const chip = statusChip(keyword.status);
+                const Icon = chip.icon;
+                const scraped = keyword.businesses_scraped ?? 0;
+                const percent = keyword.progress_percent ?? 0;
+                const etaSeconds = keyword.estimated_completion_seconds;
+                const etaText =
+                  etaSeconds && etaSeconds > 0
+                    ? `${Math.ceil(etaSeconds / 60)} min`
+                    : "--";
+                return (
+                  <tr key={keyword.id} className="border-b border-white/5">
+                    <td className="px-6 py-4 text-slate-100">{keyword.text}</td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${chip.className}`}
+                      >
+                        <Icon className={`h-3.5 w-3.5 ${chip.label === "Processing" ? "animate-spin" : ""}`} />
+                        {chip.label}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-300">
+                      {scraped}/{maxResultsPerKeyword || "--"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="w-40">
+                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-blue-400"
+                            style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-slate-400">{percent}%</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-400">
+                      {keyword.started_at
+                        ? new Date(keyword.started_at).toLocaleTimeString()
+                        : "--"}
+                    </td>
+                    <td className="px-6 py-4 text-slate-400">
+                      {etaText}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  No queued keywords yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }

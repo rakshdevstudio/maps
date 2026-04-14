@@ -1,76 +1,72 @@
 import json
 import os
 import threading
+from copy import deepcopy
 
-# Determine project root
-# If running as module (python -m backend.app.main), cwd might be root
-# If running from inside backend, we need to adjust.
+
 PROJECT_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
-
-# Potential paths for control.json
-CANDIDATE_PATHS = [
-    os.path.join(PROJECT_ROOT, "backend", "control.json"),
-    os.path.join("backend", "control.json"),
-    "control.json",
-]
-
-CONFIG_FILE = "control.json"  # Default fallback
-for path in CANDIDATE_PATHS:
-    if os.path.exists(path):
-        CONFIG_FILE = path
-        break
-    # If not exists, use the first preferred one for creation
-    CONFIG_FILE = CANDIDATE_PATHS[0]
-
-LOCK = threading.Lock()
+CONFIG_DIR = os.path.join(PROJECT_ROOT, "backend")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "control.json")
+LOCK = threading.RLock()
 
 
 def get_default_config():
-    """Get default configuration with production-grade timeout and throttling settings."""
     return {
-        "headless": False,  # Headful mode for anti-detection
-        "slow_mo": 50,  # Human-like interaction speed (ms)
-        "max_keyword_timeout": 180,  # 3 minutes max per keyword
-        "max_business_timeout": 20,  # 20 seconds max per business
-        "browser_restart_interval": 10,  # Restart browser every N keywords
-        "watchdog_timeout": 60,  # Auto-recover if no progress for 60s
-        "heartbeat_interval": 5,  # Log heartbeat every 5s
-        "delay_between_businesses_min": 2,  # Min delay between business pages
-        "delay_between_businesses_max": 6,  # Max delay between business pages
-        "delay_between_keywords_min": 5,  # Min delay between keywords
-        "delay_between_keywords_max": 15,  # Max delay between keywords
-        "delay_min": 1,  # Legacy support
-        "delay_max": 3,  # Legacy support
+        "max_results_per_keyword": 20,
+        "delay_between_requests_ms": 1500,
+        "parallel_workers": 1,
+        "proxy_url": "",
+        "headless": True,
+        "auto_save": True,
+        "google_sheets_enabled": False,
+        "google_sheets_sheet_name": "MapsScraperResults",
+        "api_endpoint": "http://localhost:8000",
+        "max_retries": 3,
+        "page_timeout_ms": 45000,
+        "browser_executable_path": "",
+        "scroll_depth_limit": 12,
+        "stop_on_duplicate_results": True,
+        "duplicate_stop_threshold": 5,
+        "adaptive_delay_enabled": True,
+        "adaptive_delay_max_ms": 8000,
     }
 
 
+def _ensure_config_file():
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    if not os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "w", encoding="utf-8") as handle:
+            json.dump(get_default_config(), handle, indent=2)
+
+
 def load_config():
-    """Load config from file and merge with defaults."""
     with LOCK:
+        _ensure_config_file()
         defaults = get_default_config()
-        if not os.path.exists(CONFIG_FILE):
-            return defaults
         try:
-            with open(CONFIG_FILE, "r") as f:
-                user_config = json.load(f)
-                # Merge: user config overrides defaults
-                merged = {**defaults, **user_config}
-                return merged
-        except Exception:
-            return defaults
+            with open(CONFIG_FILE, "r", encoding="utf-8") as handle:
+                user_config = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            user_config = {}
+        merged = deepcopy(defaults)
+        merged.update(user_config or {})
+        return merged
+
+
+def save_config(settings):
+    with LOCK:
+        current = load_config()
+        current.update(settings)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as handle:
+            json.dump(current, handle, indent=2)
+        return current
 
 
 def update_config(key, value):
-    with LOCK:
-        config = load_config()
-        config[key] = value
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=4)
-        return config
+    return save_config({key: value})
 
 
 def get_value(key, default=None):
-    config = load_config()
-    return config.get(key, default)
+    return load_config().get(key, default)

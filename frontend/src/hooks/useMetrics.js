@@ -1,33 +1,37 @@
-import { useState, useEffect } from "react";
-import { getMetrics } from "../services/api";
+import { useEffect, useState } from "react";
 
-export function useMetrics(intervalMs = 2000) {
-    const [metrics, setMetrics] = useState(null);
-    const [error, setError] = useState(null);
+import { getMetrics } from "@/services/api";
 
-    useEffect(() => {
-        let isMounted = true;
 
-        const fetchMetrics = async () => {
-            try {
-                const data = await getMetrics();
-                if (isMounted) {
-                    setMetrics(data);
-                    setError(null);
-                }
-            } catch (err) {
-                if (isMounted) setError(err);
-            }
-        };
+export function useMetrics(intervalMs = 1500) {
+  const [metrics, setMetrics] = useState(null);
+  const [error, setError] = useState(null);
 
-        fetchMetrics();
-        const intervalId = setInterval(fetchMetrics, intervalMs);
+  useEffect(() => {
+    let cancelled = false;
 
-        return () => {
-            isMounted = false;
-            clearInterval(intervalId);
-        };
-    }, [intervalMs]);
+    const fetchMetrics = async () => {
+      try {
+        const data = await getMetrics();
+        if (!cancelled) {
+          setMetrics(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err);
+        }
+      }
+    };
 
-    return { metrics, error };
+    fetchMetrics();
+    const intervalId = setInterval(fetchMetrics, intervalMs);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [intervalMs]);
+
+  return { metrics, error };
 }

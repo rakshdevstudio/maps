@@ -1,71 +1,133 @@
-import React from "react";
-import { useScraperStatus } from "../hooks/useScraperStatus";
-import { useMetrics } from "../hooks/useMetrics";
-import { useLogs } from "../hooks/useLogs";
-import ControlPanel from "../components/ControlPanel";
-import DashboardStats from "../components/DashboardStats";
-import SystemMonitor from "../components/SystemMonitor";
-import LogsPanel from "../components/LogsPanel";
-import KeywordManager from "../components/KeywordManager";
-import { LayoutDashboard } from "lucide-react";
+import { ActivitySquare } from "lucide-react";
+
+import ControlPanel from "@/components/ControlPanel";
+import DashboardStats from "@/components/DashboardStats";
+import KeywordManager from "@/components/KeywordManager";
+import LiveResultsTable from "@/components/LiveResultsTable";
+import LogsPanel from "@/components/LogsPanel";
+import SystemMonitor from "@/components/SystemMonitor";
+import { useKeywords } from "@/hooks/useKeywords";
+import { useScraper } from "@/hooks/useScraper";
+
 
 export default function Dashboard() {
-    // Use custom hooks for real-time data
-    const { status, isLoading: statusLoading } = useScraperStatus(2000);
-    const { metrics } = useMetrics(2000);
-    const { logs } = useLogs(2000);
+  const {
+    snapshot,
+    settings,
+    resultsStats,
+    loading,
+    busyAction,
+    runControl,
+    refreshSnapshot,
+  } = useScraper();
+  const { resetAll, resetFailed, resetSkipped } = useKeywords();
 
-    return (
-        <div className="p-6 space-y-6 max-w-[1600px] mx-auto pb-20">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-2">
-                <h1 className="text-2xl font-bold flex items-center gap-3">
-                    <LayoutDashboard className="text-blue-600" />
-                    Scraper Dashboard
-                </h1>
-                <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full dark:bg-gray-800 dark:text-gray-400">
-                    v2.5.0 • Production Ready
-                </div>
-            </div>
+  const handleResetFailed = async () => {
+    await resetFailed();
+    await refreshSnapshot();
+  };
 
-            {/* Stats Cards */}
-            <DashboardStats metrics={metrics} />
+  const handleResetSkipped = async () => {
+    await resetSkipped();
+    await refreshSnapshot();
+  };
 
-            {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                {/* Left Col: Controls & System */}
-                <div className="space-y-6 lg:col-span-2">
-
-                    {/* Control Panel */}
-                    <ControlPanel status={status} isLoading={statusLoading} />
-
-                    {/* Keyword Manager (Table) */}
-                    <div className="h-96">
-                        <KeywordManager />
-                    </div>
-
-                    {/* Logs */}
-                    <LogsPanel logs={logs} />
-                </div>
-
-                {/* Right Col: System Monitor & Status */}
-                <div className="space-y-6">
-                    <SystemMonitor metrics={metrics} />
-
-                    {/* Info Card / Quick Status */}
-                    <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg p-6 text-white shadow-lg">
-                        <h3 className="font-bold text-lg mb-2">System Status</h3>
-                        <p className="opacity-90 mb-4 text-sm">
-                            The new Scraper Engine is running in embedded mode with auto-healing capabilities.
-                        </p>
-                        <div className="flex items-center gap-3 text-sm font-medium bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-                            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                            Backend Online
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  const handleResetAll = async () => {
+    const confirmed = window.confirm(
+      "Reset failed, throttled, skipped, and in-progress keywords back to pending?",
     );
+    if (!confirmed) {
+      return;
+    }
+    await resetAll();
+    await refreshSnapshot();
+  };
+
+  const handleControl = async (action) => {
+    await runControl(action);
+    await refreshSnapshot();
+  };
+
+  if (loading) {
+    return <div className="p-6 text-slate-400">Loading dashboard...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/70">
+            Production Dashboard
+          </p>
+          <div className="mt-2 flex items-center gap-3">
+            <ActivitySquare className="h-8 w-8 text-cyan-300" />
+            <h2 className="text-3xl font-semibold text-white">
+              Real-time scraper operations
+            </h2>
+          </div>
+          <p className="mt-3 max-w-3xl text-sm text-slate-400">
+            Watch queue health, control execution, and confirm rows are saving while the
+            scraper runs.
+          </p>
+        </div>
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-slate-300">
+          {snapshot.last_error ? `Last error: ${snapshot.last_error}` : "No active backend errors"}
+        </div>
+      </div>
+
+      <DashboardStats metrics={snapshot.totals} activeWorkers={snapshot.active_workers} />
+
+      <div className="grid gap-6 xl:grid-cols-[1.8fr_1fr]">
+        <div className="space-y-6">
+          <ControlPanel
+            status={snapshot.status}
+            currentKeyword={snapshot.current_keyword}
+            activeWorkers={snapshot.active_workers}
+            busyAction={busyAction}
+            onControl={handleControl}
+          />
+          <KeywordManager
+            keywords={snapshot.keyword_progress || []}
+            maxResultsPerKeyword={settings?.max_results_per_keyword}
+            onResetFailed={handleResetFailed}
+            onResetSkipped={handleResetSkipped}
+            onResetAll={handleResetAll}
+          />
+          <LiveResultsTable pollIntervalMs={1500} />
+          <LogsPanel logs={snapshot.logs} />
+        </div>
+
+        <div className="space-y-6">
+          <SystemMonitor
+            snapshot={snapshot}
+            settings={settings}
+            resultsStats={resultsStats}
+          />
+          <div className="rounded-3xl border border-cyan-400/15 bg-gradient-to-br from-cyan-500/15 to-blue-500/10 p-6">
+            <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/70">
+              Progress
+            </p>
+            <h3 className="mt-2 text-2xl font-semibold text-white">
+              Queue is {snapshot.status}
+            </h3>
+            <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-blue-400"
+                style={{
+                  width: `${
+                    snapshot.totals.total
+                      ? (snapshot.totals.done / snapshot.totals.total) * 100
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+            <p className="mt-3 text-sm text-slate-200">
+              {snapshot.totals.done} of {snapshot.totals.total} keywords completed.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

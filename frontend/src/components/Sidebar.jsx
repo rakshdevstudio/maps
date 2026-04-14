@@ -1,46 +1,58 @@
-import { LayoutDashboard, Database, Settings, Activity } from "lucide-react"
+import { Database, LayoutDashboard, Radar, Settings } from "lucide-react";
+
+
+const NAV_ITEMS = [
+  { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { id: "keywords", icon: Database, label: "Keywords" },
+  { id: "settings", icon: Settings, label: "Settings" },
+];
+
 
 export function Sidebar({ activeTab, setActiveTab }) {
-    const menu = [
-        { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
-        { id: "keywords", icon: Database, label: "Keywords" },
-        { id: "settings", icon: Settings, label: "Settings" },
-    ]
-
-    return (
-        <div className="w-64 border-r bg-card/50 backdrop-blur-xl h-screen flex flex-col p-4 border-white/10">
-            <div className="flex items-center gap-2 px-2 mb-8">
-                <Activity className="h-6 w-6 text-indigo-400" />
-                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                    MapsScraper
-                </span>
-            </div>
-
-            <div className="space-y-1">
-                {menu.map((item) => (
-                    <button
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === item.id
-                                ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                                : "text-muted-foreground hover:bg-white/5 hover:text-white"
-                            }`}
-                    >
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
-                    </button>
-                ))}
-            </div>
-
-            <div className="mt-auto">
-                <div className="p-4 rounded-lg bg-gradient-to-br from-indigo-900/50 to-purple-900/50 border border-white/5">
-                    <p className="text-xs text-indigo-200">System Status</p>
-                    <div className="flex items-center gap-2 mt-2">
-                        <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-xs font-mono text-white/50">Online</span>
-                    </div>
-                </div>
-            </div>
+  return (
+    <aside className="hidden w-72 shrink-0 border-r border-white/10 bg-slate-950/80 p-6 lg:flex lg:flex-col">
+      <div className="flex items-center gap-3">
+        <div className="rounded-2xl bg-cyan-400/10 p-3">
+          <Radar className="h-6 w-6 text-cyan-300" />
         </div>
-    )
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/60">
+            Maps Scraper
+          </p>
+          <h1 className="mt-1 text-xl font-semibold text-white">Ops Console</h1>
+        </div>
+      </div>
+
+      <nav className="mt-10 space-y-2">
+        {NAV_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const active = item.id === activeTab;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+                active
+                  ? "bg-cyan-400/10 text-cyan-200 shadow-[0_8px_30px_rgba(8,145,178,0.16)]"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+          Status
+        </p>
+        <div className="mt-4 flex items-center gap-3">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_20px_rgba(74,222,128,0.9)]" />
+          <span className="text-sm text-slate-200">Backend health visible</span>
+        </div>
+      </div>
+    </aside>
+  );
 }

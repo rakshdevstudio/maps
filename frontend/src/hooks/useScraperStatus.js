@@ -1,41 +1,44 @@
-import { useState, useEffect } from "react";
-import { getScraperStatus } from "../services/api";
+import { useEffect, useState } from "react";
 
-export function useScraperStatus(intervalMs = 2000) {
-    const [status, setStatus] = useState("idle");
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
+import { getScraperStatus } from "@/services/api";
 
-    useEffect(() => {
-        let isMounted = true;
 
-        const fetchStatus = async () => {
-            try {
-                const data = await getScraperStatus();
-                if (isMounted) {
-                    setStatus(data.status);
-                    setError(null);
-                }
-            } catch (err) {
-                if (isMounted) {
-                    setError(err);
-                }
-            } finally {
-                if (isMounted) setIsLoading(false);
-            }
-        };
+export function useScraperStatus(intervalMs = 1500) {
+  const [status, setStatus] = useState("idle");
+  const [details, setDetails] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-        // Initial fetch
-        fetchStatus();
+  useEffect(() => {
+    let cancelled = false;
 
-        // Polling
-        const intervalId = setInterval(fetchStatus, intervalMs);
+    const fetchStatus = async () => {
+      try {
+        const data = await getScraperStatus();
+        if (!cancelled) {
+          setStatus(data.status);
+          setDetails(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
 
-        return () => {
-            isMounted = false;
-            clearInterval(intervalId);
-        };
-    }, [intervalMs]);
+    fetchStatus();
+    const intervalId = setInterval(fetchStatus, intervalMs);
 
-    return { status, isLoading, error };
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [intervalMs]);
+
+  return { status, details, isLoading, error };
 }
