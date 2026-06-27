@@ -2,31 +2,56 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 
 import { Sidebar } from "@/components/Sidebar";
+import Today from "@/pages/Today";
+import ExecutiveDashboard from "@/pages/ExecutiveDashboard";
+import CommandCenter from "@/pages/CommandCenter";
+import Leads from "@/pages/Leads";
 import Dashboard from "@/pages/Dashboard";
+import Proposals from "@/pages/Proposals";
 import Keywords from "@/pages/Keywords";
 import Settings from "@/pages/Settings";
 
 
 const TABS = [
-  { id: "dashboard", label: "Dashboard" },
+  { id: "today", label: "Today" },
+  { id: "executive", label: "Executive" },
+  { id: "command-center", label: "Command Center" },
+  { id: "proposals", label: "Proposals" },
+  { id: "leads", label: "Leads" },
+  { id: "operations", label: "Operations" },
   { id: "keywords", label: "Keywords" },
   { id: "settings", label: "Settings" },
 ];
 
 
 function renderTab(activeTab) {
+  if (activeTab === "executive") {
+    return <ExecutiveDashboard />;
+  }
+  if (activeTab === "command-center") {
+    return <CommandCenter />;
+  }
+  if (activeTab === "proposals") {
+    return <Proposals />;
+  }
+  if (activeTab === "leads") {
+    return <Leads />;
+  }
+  if (activeTab === "operations") {
+    return <Dashboard />;
+  }
   if (activeTab === "keywords") {
     return <Keywords />;
   }
   if (activeTab === "settings") {
     return <Settings />;
   }
-  return <Dashboard />;
+  return <Today />;
 }
 
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("today");
 
   return (
     <div className="min-h-screen bg-[#050816] text-white">

@@ -1,7 +1,8 @@
-import { Download, Search } from "lucide-react";
+import { Download, Search, Plus, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { exportResultsCsv, getResults } from "@/services/api";
+import { useLeads } from "@/hooks/useLeads";
 
 
 function toCsvFilename(keyword) {
@@ -36,6 +37,8 @@ export default function LiveResultsTable({ pollIntervalMs = 1500 }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const { promoteToLead } = useLeads();
+  const [promoted, setPromoted] = useState(new Set());
 
   const params = useMemo(
     () => ({
@@ -174,6 +177,7 @@ export default function LiveResultsTable({ pollIntervalMs = 1500 }) {
               <th className="px-4 py-3">Website</th>
               <th className="px-4 py-3">Category</th>
               <th className="px-4 py-3">Keyword</th>
+              <th className="px-4 py-3">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -194,11 +198,29 @@ export default function LiveResultsTable({ pollIntervalMs = 1500 }) {
                 </td>
                 <td className="px-4 py-3 text-slate-300">{row.category || "--"}</td>
                 <td className="max-w-[15rem] px-4 py-3 text-slate-300">{row.keyword || "--"}</td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await promoteToLead(row.id);
+                        setPromoted(new Set([...promoted, row.id]));
+                      } catch (e) { }
+                    }}
+                    disabled={promoted.has(row.id)}
+                    className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {promoted.has(row.id) ? (
+                      <><Check className="h-3 w-3 text-emerald-400" /> In Pipeline</>
+                    ) : (
+                      <><Plus className="h-3 w-3 text-cyan-300" /> Add to Pipeline</>
+                    )}
+                  </button>
+                </td>
               </tr>
             ))}
             {!loading && items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
                   No results found with current filters.
                 </td>
               </tr>

@@ -183,4 +183,158 @@ export async function exportResultsCsv(params = {}) {
 }
 
 
+export async function promoteToLead(businessId) {
+  const response = await API.post("/leads/promote", { business_id: businessId });
+  return response.data;
+}
+
+
+export async function getLeads(params = {}) {
+  const response = await API.get("/leads", { params });
+  return response.data;
+}
+
+
+export async function getLeadStats() {
+  const response = await API.get("/leads/stats");
+  return response.data;
+}
+
+
+export async function getLead(leadId) {
+  const response = await API.get(`/leads/${leadId}`);
+  return response.data;
+}
+
+
+export async function updateLead(leadId, data) {
+  const response = await API.patch(`/leads/${leadId}`, data);
+  return response.data;
+}
+
+
+export async function deleteLead(leadId) {
+  const response = await API.delete(`/leads/${leadId}`);
+  return response.data;
+}
+
+
+export async function getLeadActivities(leadId) {
+  const response = await API.get(`/leads/${leadId}/activities`);
+  return response.data;
+}
+
+
+export async function addLeadActivity(leadId, type, content = "") {
+  const response = await API.post(`/leads/${leadId}/activities`, { type, content });
+  return response.data;
+}
+
+
+export async function runAudit(leadId) {
+  const response = await API.post(`/audits/lead/${leadId}`);
+  return response.data;
+}
+
+
+export async function getAuditStats() {
+  const response = await API.get("/audits/stats");
+  return response.data;
+}
+
+
+export async function getCommandCenter(params = {}) {
+  const response = await API.get("/leads/command-center", { params });
+  return response.data;
+}
+
+
+export async function getPipelineRevenue() {
+  const response = await API.get("/leads/pipeline-revenue");
+  return response.data;
+}
+
+
+export async function getLeadOutreach(leadId) {
+  const response = await API.get(`/leads/${leadId}/outreach`);
+  return response.data;
+}
+
+
+export async function generateLeadOutreach(leadId) {
+  const response = await API.post(`/leads/${leadId}/outreach`);
+  return response.data;
+}
+
+
+export async function getTodayView() {
+  const response = await API.get("/leads/today");
+  return response.data;
+}
+
+
+export async function getPipelineForecast() {
+  const response = await API.get("/leads/pipeline-revenue");
+  return response.data;
+}
+
+
+export async function getProposalTemplates() {
+  const response = await API.get("/proposals/templates");
+  return response.data;
+}
+
+
+export async function generateProposal(leadId, payload) {
+  const response = await API.post(`/proposals/generate/${leadId}`, payload);
+  return response.data;
+}
+
+
+export async function getProposals(params = {}) {
+  const response = await API.get("/proposals", { params });
+  return response.data;
+}
+
+
+export async function getProposal(id) {
+  const response = await API.get(`/proposals/${id}`);
+  return response.data;
+}
+
+
+export async function sendProposal(id) {
+  const response = await API.post(`/proposals/${id}/send`);
+  return response.data;
+}
+
+
+export async function acceptProposal(id, payload) {
+  const response = await API.post(`/proposals/${id}/accept`, payload);
+  return response.data;
+}
+
+
+export async function rejectProposal(id, payload) {
+  const response = await API.post(`/proposals/${id}/reject`, payload);
+  return response.data;
+}
+
+
+export async function getProposalStats() {
+  const response = await API.get("/proposals/stats");
+  return response.data;
+}
+
+
+export async function getProposalNegotiation(id) {
+  const response = await API.get(`/proposals/${id}/negotiation`);
+  return response.data;
+}
+
+
+export function getProposalPdfUrl(id) {
+  return `${API.defaults.baseURL}/proposals/${id}/pdf`;
+}
+
 export default API;

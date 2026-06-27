@@ -1,8 +1,13 @@
-import { Database, LayoutDashboard, Radar, Settings } from "lucide-react";
+import { Database, LayoutDashboard, Radar, Settings, Users, Crosshair, CalendarCheck, BarChart3, Wrench, FileText } from "lucide-react";
 
 
 const NAV_ITEMS = [
-  { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { id: "today", icon: CalendarCheck, label: "Today" },
+  { id: "executive", icon: BarChart3, label: "Executive" },
+  { id: "command-center", icon: Crosshair, label: "Command Center" },
+  { id: "proposals", icon: FileText, label: "Proposals" },
+  { id: "leads", icon: Users, label: "Leads" },
+  { id: "operations", icon: Wrench, label: "Operations" },
   { id: "keywords", icon: Database, label: "Keywords" },
   { id: "settings", icon: Settings, label: "Settings" },
 ];
@@ -17,13 +22,13 @@ export function Sidebar({ activeTab, setActiveTab }) {
         </div>
         <div>
           <p className="text-xs uppercase tracking-[0.24em] text-cyan-300/60">
-            Maps Scraper
+            Nexora OS
           </p>
-          <h1 className="mt-1 text-xl font-semibold text-white">Ops Console</h1>
+          <h1 className="mt-1 text-xl font-semibold text-white">Revenue Engine</h1>
         </div>
       </div>
 
-      <nav className="mt-10 space-y-2">
+      <nav className="mt-10 space-y-1">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = item.id === activeTab;
@@ -50,7 +55,7 @@ export function Sidebar({ activeTab, setActiveTab }) {
         </p>
         <div className="mt-4 flex items-center gap-3">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_20px_rgba(74,222,128,0.9)]" />
-          <span className="text-sm text-slate-200">Backend health visible</span>
+          <span className="text-sm text-slate-200">Systems operational</span>
         </div>
       </div>
     </aside>

@@ -1,26 +1,41 @@
 import hashlib
 import io
 import csv
+import os
 from io import StringIO
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from . import config, database, models, schemas
 from .scraper_manager import scraper_manager
-
+from .leads_router import router as leads_router
+from .audits_router import router as audits_router
+from .proposal_router import router as proposal_router
 
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Maps Scraper Dashboard")
+app.include_router(leads_router)
+app.include_router(audits_router)
+app.include_router(proposal_router)
+
+screenshots_dir = os.path.join(os.path.dirname(__file__), "..", "screenshots")
+os.makedirs(screenshots_dir, exist_ok=True)
+app.mount("/screenshots", StaticFiles(directory=screenshots_dir), name="screenshots")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
     ],
     allow_credentials=True,
     allow_methods=["*"],
