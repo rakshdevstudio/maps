@@ -177,6 +177,60 @@ export default function ProjectDetail({ projectId, onClose }) {
           </div>
         )}
 
+        {/* MILESTONES TAB */}
+        {activeTab === "milestones" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-white">Project Milestones</h3>
+            </div>
+            <div className="space-y-4">
+              {project.milestones.map((ms, idx) => (
+                <div key={ms.id} className="rounded-xl border border-white/10 bg-slate-900/50 p-5">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-400">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-white text-base">{ms.title}</h4>
+                        <p className="text-sm text-slate-400 mt-1">{ms.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize
+                        ${ms.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
+                          ms.status === 'in_progress' ? 'bg-cyan-500/10 text-cyan-400' :
+                          'bg-slate-500/10 text-slate-400'}`}>
+                        {ms.status.replace('_', ' ')}
+                      </span>
+                      <select
+                        value={ms.status}
+                        onChange={async (e) => {
+                          try {
+                            await updateMilestone(projectId, ms.id, { status: e.target.value });
+                            fetchProjectDetail();
+                          } catch (err) {}
+                        }}
+                        className="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-300 outline-none focus:border-cyan-500 transition"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 h-2 overflow-hidden rounded-full bg-slate-800">
+                      <div className={`h-full rounded-full transition-all duration-500 ${ms.completion_percentage === 100 ? 'bg-emerald-500' : 'bg-cyan-500'}`} style={{ width: `${ms.completion_percentage}%` }} />
+                    </div>
+                    <span className="text-sm text-slate-400 w-12 text-right">{ms.completion_percentage}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* TASKS TAB */}
         {activeTab === "tasks" && (
           <div className="space-y-8">
