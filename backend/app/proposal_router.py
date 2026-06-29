@@ -45,6 +45,10 @@ def _serialize_proposal(prop: models.Proposal) -> dict:
         "accepted_at": prop.accepted_at.isoformat() if prop.accepted_at else None,
         "rejected_at": prop.rejected_at.isoformat() if prop.rejected_at else None,
         "expires_at": prop.expires_at.isoformat() if prop.expires_at else None,
+        "view_count": getattr(prop, 'view_count', 0),
+        "first_viewed_at": prop.first_viewed_at.isoformat() if getattr(prop, 'first_viewed_at', None) else None,
+        "last_viewed_at": prop.last_viewed_at.isoformat() if getattr(prop, 'last_viewed_at', None) else None,
+        "time_spent": getattr(prop, 'time_spent', 0),
         "created_at": prop.created_at.isoformat() if prop.created_at else None,
         "updated_at": prop.updated_at.isoformat() if prop.updated_at else None,
     }
@@ -209,6 +213,43 @@ def accept_proposal(proposal_id: int, req: schemas.WinLossReasonCreate, db: Sess
         lead.deal_stage = "closed_won"
         db.add(models.Activity(lead_id=lead.id, type="proposal_accepted", content=f"Proposal V{prop.version} Accepted!"))
         
+        # ── Phase 6A: Auto-create Project ────────────────────────
+        biz_name = lead.business.name if lead.business else "Unknown Client"
+        project_name = f"{prop.package_name or 'Strategic Engagement'} — {biz_name}"
+        
+        project = models.Project(
+            lead_id=lead.id,
+            proposal_id=prop.id,
+            project_name=project_name,
+            client_name=biz_name,
+            project_value=prop.amount_min or 0,
+        )
+        db.add(project)
+        db.flush() # Get project ID
+        
+        # Add Project Creation Event
+        db.add(models.ProjectEvent(project_id=project.id, event_type="project_created", description="Project automatically created from accepted proposal."))
+        
+        # Add Default Milestones
+        default_milestones = [
+            ("Discovery & Onboarding", "Client kickoff, account access, and baseline data collection."),
+            ("Strategic Planning", "Technical architecture, campaign strategy, and asset requirements."),
+            ("Implementation Phase 1", "Core infrastructure setup and initial configurations."),
+            ("Quality Assurance", "Testing, debugging, and pre-launch validation."),
+            ("Launch & Handover", "Go-live sequence and client handover/training."),
+            ("Optimization & Review", "Post-launch monitoring and 30-day performance review."),
+        ]
+        for i, (title, desc) in enumerate(default_milestones):
+            db.add(models.Milestone(
+                project_id=project.id,
+                title=title,
+                description=desc,
+                sort_order=i
+            ))
+            
+        db.add(models.Activity(lead_id=lead.id, type="project_created", content=f"Project '{project_name}' automatically created."))
+        # ─────────────────────────────────────────────────────────
+
     wl = models.WinLossReason(
         proposal_id=prop.id,
         outcome="won",
@@ -283,14 +324,38 @@ def public_proposal(token: str, db: Session = Depends(get_db)):
     if not prop:
         raise HTTPException(404, "Invalid token")
         
-    if prop.status == "sent":
+    if prop.status == "sent" or prop.status == "draft":
         prop.status = "viewed"
-        prop.viewed_at = datetime.utcnow()
-        lead = db.query(models.Lead).filter(models.Lead.id == prop.lead_id).first()
-        if lead:
-            lead.deal_stage = "proposal_viewed"
-            audit = db.query(models.WebsiteAudit).filter(models.WebsiteAudit.lead_id == prop.lead_id).order_by(models.WebsiteAudit.created_at.desc()).first()
-            prop.close_probability = calculate_close_probability(lead, audit, "proposal_viewed")
-        db.commit()
+        
+    prop.viewed_at = datetime.utcnow()
+    
+    # Analytics
+    prop.view_count = (getattr(prop, 'view_count', 0) or 0) + 1
+    prop.last_viewed_at = datetime.utcnow()
+    if not getattr(prop, 'first_viewed_at', None):
+        prop.first_viewed_at = datetime.utcnow()
+        
+    lead = db.query(models.Lead).filter(models.Lead.id == prop.lead_id).first()
+    if lead and lead.deal_stage != "proposal_viewed" and lead.deal_stage != "closed_won":
+        lead.deal_stage = "proposal_viewed"
+        audit = db.query(models.WebsiteAudit).filter(models.WebsiteAudit.lead_id == prop.lead_id).order_by(models.WebsiteAudit.created_at.desc()).first()
+        prop.close_probability = calculate_close_probability(lead, audit, "proposal_viewed")
+    
+    db.commit()
         
     return _serialize_proposal(prop)
+
+from pydantic import BaseModel
+class TrackRequest(BaseModel):
+    time_spent: int
+
+@router.post("/public/{token}/track")
+def track_proposal(token: str, req: TrackRequest, db: Session = Depends(get_db)):
+    prop = db.query(models.Proposal).filter(models.Proposal.public_token == token).first()
+    if not prop:
+        raise HTTPException(404, "Invalid token")
+        
+    current_time = getattr(prop, 'time_spent', 0) or 0
+    prop.time_spent = current_time + req.time_spent
+    db.commit()
+    return {"status": "ok"}

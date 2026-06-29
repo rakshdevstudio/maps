@@ -361,3 +361,146 @@ class NegotiationGuidance(BaseModel):
     objection: str
     response: str
 
+
+# ── Phase 6A: Project Delivery Schemas ───────────────────────────────
+
+class ProjectEventItem(BaseModel):
+    id: int
+    project_id: int
+    event_type: str
+    description: Optional[str]
+    created_at: str
+
+    class Config:
+        orm_mode = True
+
+
+class ProjectFileItem(BaseModel):
+    id: int
+    project_id: int
+    milestone_id: Optional[int] = None
+    task_id: Optional[int] = None
+    filename: str
+    filepath: str
+    file_type: Optional[str]
+    file_size: int
+    created_at: str
+
+    class Config:
+        orm_mode = True
+
+
+class TaskItem(BaseModel):
+    id: int
+    project_id: int
+    milestone_id: Optional[int] = None
+    title: str
+    description: Optional[str]
+    priority: str
+    status: str
+    due_date: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+    class Config:
+        orm_mode = True
+
+
+class TaskCreate(BaseModel):
+    milestone_id: Optional[int] = None
+    title: str
+    description: Optional[str] = None
+    priority: str = "medium"
+    status: str = "backlog"
+    due_date: Optional[str] = None
+
+
+class TaskUpdate(BaseModel):
+    milestone_id: Optional[int] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+    due_date: Optional[str] = None
+
+
+class MilestoneItem(BaseModel):
+    id: int
+    project_id: int
+    title: str
+    description: Optional[str]
+    status: str
+    completion_percentage: int
+    due_date: Optional[str] = None
+    sort_order: int
+    created_at: str
+    updated_at: str
+    tasks: List[TaskItem] = []
+
+    class Config:
+        orm_mode = True
+
+
+class MilestoneUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    due_date: Optional[str] = None
+
+
+class RetainerRecommendationItem(BaseModel):
+    id: int
+    project_id: int
+    type: str
+    title: str
+    description: Optional[str]
+    rationale: Optional[str]
+    monthly_value: float
+    status: str
+    created_at: str
+
+    class Config:
+        orm_mode = True
+
+
+class ProjectItem(BaseModel):
+    id: int
+    lead_id: int
+    proposal_id: int
+    project_name: str
+    client_name: str
+    project_value: float
+    status: str
+    health_status: str
+    completion_percentage: int
+    start_date: Optional[str] = None
+    target_completion_date: Optional[str] = None
+    actual_completion_date: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+    class Config:
+        orm_mode = True
+
+
+class ProjectDetail(ProjectItem):
+    milestones: List[MilestoneItem] = []
+    events: List[ProjectEventItem] = []
+    files: List[ProjectFileItem] = []
+    retainer_recommendations: List[RetainerRecommendationItem] = []
+
+
+class ProjectUpdate(BaseModel):
+    project_name: Optional[str] = None
+    status: Optional[str] = None
+    target_completion_date: Optional[str] = None
+
+
+class DeliveryDashboardStats(BaseModel):
+    active_projects: int = 0
+    projects_at_risk: int = 0
+    projects_critical: int = 0
+    projects_completed: int = 0
+    revenue_in_delivery: float = 0
+    retainer_opportunities: int = 0
+    upcoming_deadlines: List[dict] = []

@@ -126,6 +126,7 @@ class Lead(Base):
     audits = relationship("WebsiteAudit", back_populates="lead", cascade="all, delete-orphan")
     outreach_messages = relationship("OutreachMessage", back_populates="lead", cascade="all, delete-orphan")
     proposals = relationship("Proposal", back_populates="lead", cascade="all, delete-orphan")
+    projects = relationship("Project", back_populates="lead", cascade="all, delete-orphan")
 
 
 class Activity(Base):
@@ -239,6 +240,12 @@ class Proposal(Base):
     rejected_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)
     
+    # Analytics
+    view_count = Column(Integer, default=0)
+    first_viewed_at = Column(DateTime, nullable=True)
+    last_viewed_at = Column(DateTime, nullable=True)
+    time_spent = Column(Integer, default=0) # Total seconds
+    
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -269,3 +276,112 @@ class WinLossReason(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     proposal = relationship("Proposal")
+
+
+# ── Phase 6A: Project Delivery Operating System ──────────────────────
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    proposal_id = Column(Integer, ForeignKey("proposals.id"), nullable=False, index=True)
+    project_name = Column(String, nullable=False)
+    client_name = Column(String, nullable=False)
+    project_value = Column(Float, default=0)
+    status = Column(String, default="active", index=True)  # active, on_hold, completed, cancelled
+    health_status = Column(String, default="healthy")  # healthy, at_risk, critical
+    completion_percentage = Column(Integer, default=0)
+    start_date = Column(DateTime, default=datetime.utcnow)
+    target_completion_date = Column(DateTime, nullable=True)
+    actual_completion_date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    lead = relationship("Lead", back_populates="projects")
+    proposal = relationship("Proposal")
+    milestones = relationship("Milestone", back_populates="project", cascade="all, delete-orphan", order_by="Milestone.sort_order")
+    tasks = relationship("Task", back_populates="project", cascade="all, delete-orphan")
+    files = relationship("ProjectFile", back_populates="project", cascade="all, delete-orphan")
+    events = relationship("ProjectEvent", back_populates="project", cascade="all, delete-orphan", order_by="ProjectEvent.created_at.desc()")
+    retainer_recommendations = relationship("RetainerRecommendation", back_populates="project", cascade="all, delete-orphan")
+
+
+class Milestone(Base):
+    __tablename__ = "milestones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String, default="pending")  # pending, in_progress, completed
+    completion_percentage = Column(Integer, default=0)
+    due_date = Column(DateTime, nullable=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project", back_populates="milestones")
+    tasks = relationship("Task", back_populates="milestone", cascade="all, delete-orphan")
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    milestone_id = Column(Integer, ForeignKey("milestones.id"), nullable=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    priority = Column(String, default="medium")  # low, medium, high, critical
+    status = Column(String, default="backlog")  # backlog, todo, in_progress, review, completed
+    due_date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("Project", back_populates="tasks")
+    milestone = relationship("Milestone", back_populates="tasks")
+
+
+class ProjectFile(Base):
+    __tablename__ = "project_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    milestone_id = Column(Integer, ForeignKey("milestones.id"), nullable=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
+    filename = Column(String, nullable=False)
+    filepath = Column(String, nullable=False)
+    file_type = Column(String, nullable=True)
+    file_size = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="files")
+
+
+class ProjectEvent(Base):
+    __tablename__ = "project_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    event_type = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    project = relationship("Project", back_populates="events")
+
+
+class RetainerRecommendation(Base):
+    __tablename__ = "retainer_recommendations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    type = Column(String, nullable=False)  # maintenance, seo, analytics, growth
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    rationale = Column(Text, nullable=True)
+    monthly_value = Column(Float, default=0)
+    status = Column(String, default="pending")  # pending, presented, accepted, declined
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="retainer_recommendations")

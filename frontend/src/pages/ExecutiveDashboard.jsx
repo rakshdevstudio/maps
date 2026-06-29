@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { TrendingUp, AlertTriangle, Phone, DollarSign, Target } from "lucide-react";
-import { getPipelineForecast, getTodayView, getProposalStats } from "@/services/api";
+import { TrendingUp, AlertTriangle, Phone, DollarSign, Target, FolderKanban, AlertOctagon, CheckCircle2 } from "lucide-react";
+import { getPipelineForecast, getTodayView, getProposalStats, getProjectStats } from "@/services/api";
 import LeadDetail from "@/components/LeadDetail";
 import { useLeads } from "@/hooks/useLeads";
 
@@ -9,16 +9,18 @@ export default function ExecutiveDashboard() {
   const [forecast, setForecast] = useState(null);
   const [today, setToday] = useState(null);
   const [proposalStats, setProposalStats] = useState(null);
+  const [projectStats, setProjectStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState(null);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [f, t, p] = await Promise.all([getPipelineForecast(), getTodayView(), getProposalStats()]);
+        const [f, t, p, proj] = await Promise.all([getPipelineForecast(), getTodayView(), getProposalStats(), getProjectStats()]);
         setForecast(f);
         setToday(t);
         setProposalStats(p);
+        setProjectStats(proj);
       } catch (e) {
         console.error(e);
       } finally {
@@ -234,6 +236,64 @@ export default function ExecutiveDashboard() {
             </div>
           )}
         </div>
+        {/* Phase 6A: Delivery Intelligence Section */}
+        {projectStats && (
+          <div className="mt-8">
+            <h2 className="text-xl font-bold text-white tracking-tight mb-4 flex items-center gap-2">
+              <FolderKanban className="h-5 w-5 text-cyan-400" />
+              Delivery Intelligence
+            </h2>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-white/10 bg-slate-900/50 p-6 shadow-xl backdrop-blur-3xl">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-xl bg-cyan-400/10 p-3 ring-1 ring-cyan-400/20">
+                    <FolderKanban className="h-6 w-6 text-cyan-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-400">Active Projects</p>
+                    <p className="text-2xl font-bold text-white">{projectStats.active_projects}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-slate-900/50 p-6 shadow-xl backdrop-blur-3xl">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-xl bg-emerald-400/10 p-3 ring-1 ring-emerald-400/20">
+                    <DollarSign className="h-6 w-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-400">Revenue in Delivery</p>
+                    <p className="text-2xl font-bold text-white">${projectStats.revenue_in_delivery.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-red-500/20 bg-slate-900/50 p-6 shadow-xl backdrop-blur-3xl shadow-red-500/5">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-xl bg-red-400/10 p-3 ring-1 ring-red-400/20">
+                    <AlertOctagon className="h-6 w-6 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-400">Projects at Risk</p>
+                    <p className="text-2xl font-bold text-red-400">{projectStats.projects_at_risk + projectStats.projects_critical}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-emerald-500/20 bg-slate-900/50 p-6 shadow-xl backdrop-blur-3xl shadow-emerald-500/5">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-xl bg-emerald-400/10 p-3 ring-1 ring-emerald-400/20">
+                    <Target className="h-6 w-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-400">Retainer Opportunities</p>
+                    <p className="text-2xl font-bold text-emerald-400">{projectStats.retainer_opportunities}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedLead && (

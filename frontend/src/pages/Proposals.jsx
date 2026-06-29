@@ -13,6 +13,16 @@ export default function Proposals() {
     setLoading(true);
     try {
       const data = await getProposals({ status: statusFilter === "all" ? "" : statusFilter });
+      
+      // Module 12: Deal Closing Command Center Sorting
+      // Sort: Highest Value First, Then Highest Acceptance Probability
+      data.sort((a, b) => {
+        if (b.amount_min !== a.amount_min) {
+          return b.amount_min - a.amount_min;
+        }
+        return b.close_probability - a.close_probability;
+      });
+      
       setProposals(data);
     } catch (err) {
       // Error handled by interceptor
@@ -84,9 +94,10 @@ export default function Proposals() {
                 <tr>
                   <th className="px-4 py-3">Proposal</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">Close Prob.</th>
-                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3">Value</th>
+                  <th className="px-4 py-3">Acceptance Prob.</th>
+                  <th className="px-4 py-3">Proposal Health</th>
+                  <th className="px-4 py-3">Days Open</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -107,7 +118,7 @@ export default function Proposals() {
                       </span>
                     </td>
                     <td className="px-4 py-4 font-medium text-emerald-400">
-                      ${prop.amount_min.toLocaleString()}
+                      ${prop.amount_min?.toLocaleString()}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
@@ -117,11 +128,18 @@ export default function Proposals() {
                         <span className="text-xs text-slate-400">{prop.close_probability}%</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-slate-400">
-                      {formatDistanceToNow(new Date(prop.created_at + 'Z'), { addSuffix: true })}
+                    <td className="px-4 py-4">
+                      <div className="text-xs text-slate-300">Views: <span className="font-bold text-white">{prop.view_count || 0}</span></div>
+                      <div className="text-xs text-slate-400">Last: {prop.last_viewed_at ? formatDistanceToNow(new Date(prop.last_viewed_at + 'Z'), { addSuffix: true }) : 'Never'}</div>
+                    </td>
+                    <td className="px-4 py-4 text-slate-400 text-xs">
+                      {formatDistanceToNow(new Date(prop.created_at + 'Z'))}
                     </td>
                     <td className="px-4 py-4 text-right">
                       <div className="flex justify-end gap-2">
+                        <a href={`/proposal/${prop.public_token}`} target="_blank" rel="noreferrer" title="Open Digital Portal" className="p-2 rounded hover:bg-cyan-500/20 text-cyan-400 transition font-bold text-xs uppercase tracking-wider flex items-center">
+                          Portal
+                        </a>
                         <a href={getProposalPdfUrl(prop.id)} target="_blank" rel="noreferrer" title="Download PDF" className="p-2 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition">
                           <FiDownload />
                         </a>

@@ -1,4 +1,4 @@
-import { Database, LayoutDashboard, Radar, Settings, Users, Crosshair, CalendarCheck, BarChart3, Wrench, FileText } from "lucide-react";
+import { Database, LayoutDashboard, Radar, Settings, Users, Crosshair, CalendarCheck, BarChart3, Wrench, FileText, FolderKanban } from "lucide-react";
 
 
 const NAV_ITEMS = [
@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { id: "executive", icon: BarChart3, label: "Executive" },
   { id: "command-center", icon: Crosshair, label: "Command Center" },
   { id: "proposals", icon: FileText, label: "Proposals" },
+  { id: "projects", icon: FolderKanban, label: "Projects" },
   { id: "leads", icon: Users, label: "Leads" },
   { id: "operations", icon: Wrench, label: "Operations" },
   { id: "keywords", icon: Database, label: "Keywords" },

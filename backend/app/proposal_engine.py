@@ -43,28 +43,7 @@ def generate_proposal_data(lead: models.Lead, audit: models.WebsiteAudit, templa
     nexora_services = json.loads(audit.nexora_services) if audit.nexora_services and audit.nexora_services != "[]" else [template.name]
     deliverables = json.loads(template.deliverables) if template.deliverables else []
     
-    primary_leak = revenue_leaks[0]
-    opportunity = audit.opportunity_type or "Growth Opportunity"
-    readiness = getattr(audit, 'sales_readiness_score', 50)
-    
-    data = {
-        "executive_summary": f"This proposal outlines a strategic partnership to eliminate critical revenue leaks at {business.name}. Based on our technical audit, {business.name} has a {readiness}/100 sales readiness score and is losing potential clients due to {primary_leak.lower()}.",
-        "current_situation": f"{business.name} is a highly rated {business.category or 'business'} ({business.rating}★). However, the current digital infrastructure lacks key elements required to capture modern consumer demand.",
-        "problems_found": issues_found,
-        "recommended_services": nexora_services,
-        "deliverables": deliverables,
-        "timeline": template.timeline,
-        "investment": {
-            "setup_fee": template.base_price,
-            "monthly_retainer": template.base_price * 0.2 if "Retainer" in template.timeline else 0
-        },
-        "expected_outcomes": [
-            f"Plug the '{primary_leak.lower()}' revenue leak",
-            f"Capitalize on the {opportunity} identified in our audit",
-            "Increase qualified lead capture rate",
-            "Establish scalable digital infrastructure"
-        ],
-        "next_steps": "To proceed, please review the investment details and digitally sign this proposal. We will schedule a kickoff call within 48 hours of acceptance."
-    }
+    from .proposal_story_engine import build_proposal_story
+    data = build_proposal_story(audit, lead, template)
     
     return data

@@ -15,6 +15,7 @@ from .scraper_manager import scraper_manager
 from .leads_router import router as leads_router
 from .audits_router import router as audits_router
 from .proposal_router import router as proposal_router
+from .projects_router import router as projects_router
 
 models.Base.metadata.create_all(bind=database.engine)
 
@@ -22,10 +23,15 @@ app = FastAPI(title="Maps Scraper Dashboard")
 app.include_router(leads_router)
 app.include_router(audits_router)
 app.include_router(proposal_router)
+app.include_router(projects_router)
 
 screenshots_dir = os.path.join(os.path.dirname(__file__), "..", "screenshots")
 os.makedirs(screenshots_dir, exist_ok=True)
 app.mount("/screenshots", StaticFiles(directory=screenshots_dir), name="screenshots")
+
+project_files_dir = os.path.join(os.path.dirname(__file__), "..", "project-files")
+os.makedirs(project_files_dir, exist_ok=True)
+app.mount("/project-files", StaticFiles(directory=project_files_dir), name="project_files")
 
 app.add_middleware(
     CORSMiddleware,

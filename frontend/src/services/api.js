@@ -337,4 +337,77 @@ export function getProposalPdfUrl(id) {
   return `${API.defaults.baseURL}/proposals/${id}/pdf`;
 }
 
+// ── Phase 6A: Project Delivery API ───────────────────────────────
+
+export async function getProjects(params = {}) {
+  const response = await API.get("/projects", { params });
+  return response.data;
+}
+
+export async function getProjectStats() {
+  const response = await API.get("/projects/stats");
+  return response.data;
+}
+
+export async function getProject(id) {
+  const response = await API.get(`/projects/${id}`);
+  return response.data;
+}
+
+export async function updateProject(id, data) {
+  const response = await API.patch(`/projects/${id}`, data);
+  return response.data;
+}
+
+export async function updateMilestone(projectId, milestoneId, data) {
+  const response = await API.patch(`/projects/${projectId}/milestones/${milestoneId}`, data);
+  return response.data;
+}
+
+export async function createTask(projectId, data) {
+  const response = await API.post(`/projects/${projectId}/tasks`, data);
+  return response.data;
+}
+
+export async function updateTask(projectId, taskId, data) {
+  const response = await API.patch(`/projects/${projectId}/tasks/${taskId}`, data);
+  return response.data;
+}
+
+export async function deleteTask(projectId, taskId) {
+  const response = await API.delete(`/projects/${projectId}/tasks/${taskId}`);
+  return response.data;
+}
+
+export async function uploadProjectFile(projectId, file, milestoneId = null, taskId = null) {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (milestoneId) formData.append("milestone_id", milestoneId);
+  if (taskId) formData.append("task_id", taskId);
+  
+  const response = await API.post(`/projects/${projectId}/files`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+}
+
+export async function deleteProjectFile(fileId) {
+  const response = await API.delete(`/projects/files/${fileId}`);
+  return response.data;
+}
+
+export function getProjectFileUrl(fileId) {
+  return `${API.defaults.baseURL}/projects/files/${fileId}/download`;
+}
+
+export async function getProjectTimeline(projectId) {
+  const response = await API.get(`/projects/${projectId}/timeline`);
+  return response.data;
+}
+
+export async function getProjectLifecycle(projectId) {
+  const response = await API.get(`/projects/${projectId}/lifecycle`);
+  return response.data;
+}
+
 export default API;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "sonner";
 
 import { Sidebar } from "@/components/Sidebar";
@@ -8,50 +8,55 @@ import CommandCenter from "@/pages/CommandCenter";
 import Leads from "@/pages/Leads";
 import Dashboard from "@/pages/Dashboard";
 import Proposals from "@/pages/Proposals";
+import Projects from "@/pages/Projects";
 import Keywords from "@/pages/Keywords";
 import Settings from "@/pages/Settings";
-
+import ProposalViewer from "@/pages/ProposalViewer";
 
 const TABS = [
   { id: "today", label: "Today" },
   { id: "executive", label: "Executive" },
   { id: "command-center", label: "Command Center" },
   { id: "proposals", label: "Proposals" },
+  { id: "projects", label: "Projects" },
   { id: "leads", label: "Leads" },
   { id: "operations", label: "Operations" },
   { id: "keywords", label: "Keywords" },
   { id: "settings", label: "Settings" },
 ];
 
-
 function renderTab(activeTab) {
-  if (activeTab === "executive") {
-    return <ExecutiveDashboard />;
-  }
-  if (activeTab === "command-center") {
-    return <CommandCenter />;
-  }
-  if (activeTab === "proposals") {
-    return <Proposals />;
-  }
-  if (activeTab === "leads") {
-    return <Leads />;
-  }
-  if (activeTab === "operations") {
-    return <Dashboard />;
-  }
-  if (activeTab === "keywords") {
-    return <Keywords />;
-  }
-  if (activeTab === "settings") {
-    return <Settings />;
-  }
+  if (activeTab === "executive") return <ExecutiveDashboard />;
+  if (activeTab === "command-center") return <CommandCenter />;
+  if (activeTab === "proposals") return <Proposals />;
+  if (activeTab === "projects") return <Projects />;
+  if (activeTab === "leads") return <Leads />;
+  if (activeTab === "operations") return <Dashboard />;
+  if (activeTab === "keywords") return <Keywords />;
+  if (activeTab === "settings") return <Settings />;
   return <Today />;
 }
 
-
 export default function App() {
   const [activeTab, setActiveTab] = useState("today");
+  const [publicToken, setPublicToken] = useState(null);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith("/proposal/")) {
+      const token = path.split("/").pop();
+      if (token) setPublicToken(token);
+    }
+  }, []);
+
+  if (publicToken) {
+    return (
+      <>
+        <Toaster position="top-right" theme="dark" richColors />
+        <ProposalViewer token={publicToken} />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050816] text-white">
