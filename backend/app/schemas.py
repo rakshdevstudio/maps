@@ -504,3 +504,77 @@ class DeliveryDashboardStats(BaseModel):
     revenue_in_delivery: float = 0
     retainer_opportunities: int = 0
     upcoming_deadlines: List[dict] = []
+
+
+# ── Phase 7: Autonomous AI Workforce Schemas ───────────────────────
+
+class AIDailySdrRecommendationItem(BaseModel):
+    id: int
+    lead_id: int
+    score: int
+    reason: str
+    recommended_action: str
+    generated_at: str
+
+    class Config:
+        orm_mode = True
+
+class AIRevenueBriefingItem(BaseModel):
+    id: int
+    pipeline_total: float
+    likely_to_close: float
+    risk_summary: str
+    blocked_summary: str
+    generated_at: str
+
+    class Config:
+        orm_mode = True
+
+class AIProposalStrategyItem(BaseModel):
+    id: int
+    lead_id: int
+    recommended_package: str
+    recommended_investment: float
+    recommended_angle: str
+    positioning: str
+    generated_at: str
+
+    class Config:
+        orm_mode = True
+
+class AIProjectRiskReportItem(BaseModel):
+    id: int
+    project_id: int
+    risk_level: str
+    slipping_reason: Optional[str]
+    overdue_tasks_summary: Optional[str]
+    blocked_milestones_summary: Optional[str]
+    priority_action: str
+    generated_at: str
+
+    class Config:
+        orm_mode = True
+
+class AIAccountGrowthOpportunityItem(BaseModel):
+    id: int
+    project_id: int
+    opportunity_type: str
+    rationale: str
+    expected_outcome: str
+    confidence_score: int
+    generated_at: str
+
+    class Config:
+        orm_mode = True
+
+class AIExecutiveBriefItem(BaseModel):
+    id: int
+    what_happened: str
+    what_matters: str
+    what_is_blocked: str
+    what_should_happen_next: str
+    what_deserves_attention: str
+    generated_at: str
+
+    class Config:
+        orm_mode = True

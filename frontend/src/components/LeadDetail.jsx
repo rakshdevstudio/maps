@@ -1,7 +1,7 @@
-import { X, RefreshCw, ExternalLink, Activity, Target, Copy, Zap, MessageSquare, PhoneCall, Mail, CheckCircle2 } from "lucide-react";
+import { X, RefreshCw, ExternalLink, Activity, Target, Copy, Zap, MessageSquare, PhoneCall, Mail, CheckCircle2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { runAudit, getLeadOutreach, generateLeadOutreach, getProposalTemplates, generateProposal, getProposals, getProposalPdfUrl, sendProposal, acceptProposal, rejectProposal } from "../services/api";
+import { runAudit, getLeadOutreach, generateLeadOutreach, getProposalTemplates, generateProposal, getProposals, getProposalPdfUrl, sendProposal, acceptProposal, rejectProposal, getProposalStrategy } from "../services/api";
 
 export default function LeadDetail({ lead, onClose, onUpdate, logActivity }) {
   const [notes, setNotes] = useState(lead.notes || "");
@@ -25,6 +25,7 @@ export default function LeadDetail({ lead, onClose, onUpdate, logActivity }) {
   const [proposals, setProposals] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [generatingProposal, setGeneratingProposal] = useState(false);
+  const [aiStrategy, setAiStrategy] = useState(null);
   
   const fetchLeadProposals = async () => {
     try {
@@ -50,6 +51,7 @@ export default function LeadDetail({ lead, onClose, onUpdate, logActivity }) {
     setOutreachData(null);
     fetchLeadProposals();
     fetchTemplates();
+    getProposalStrategy(lead.id).then(setAiStrategy).catch(() => {});
   }, [lead]);
 
   const handleSave = async () => {
@@ -441,6 +443,32 @@ export default function LeadDetail({ lead, onClose, onUpdate, logActivity }) {
               ) : null}
             </div>
             
+            {/* Phase 7: AI Proposal Strategist */}
+            {aiStrategy && (
+              <div className="rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 to-purple-500/5 p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-16 bg-indigo-500/10 blur-[50px] rounded-full pointer-events-none" />
+                <div className="flex items-center gap-2 text-sm font-semibold text-indigo-300 mb-4 relative z-10">
+                  <Sparkles className="h-4 w-4" />
+                  AI PROPOSAL STRATEGIST
+                </div>
+                
+                <div className="grid gap-4 relative z-10">
+                  <div>
+                    <span className="text-xs uppercase tracking-wider text-slate-500">Recommended Package</span>
+                    <div className="mt-1 font-bold text-white text-lg">{aiStrategy.recommended_package}</div>
+                  </div>
+                  <div>
+                    <span className="text-xs uppercase tracking-wider text-slate-500">Suggested Investment</span>
+                    <div className="mt-1 font-bold text-emerald-400 text-lg">${aiStrategy.recommended_investment.toLocaleString()}</div>
+                  </div>
+                  <div className="pt-2 border-t border-white/10">
+                    <span className="text-xs uppercase tracking-wider text-slate-500">Sales Angle</span>
+                    <p className="mt-1 text-sm text-slate-300 leading-relaxed italic">"{aiStrategy.recommended_angle}"</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Phase 5: Proposal Engine */}
             <div className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.02] p-5">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">

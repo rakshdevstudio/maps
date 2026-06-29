@@ -410,4 +410,40 @@ export async function getProjectLifecycle(projectId) {
   return response.data;
 }
 
+// --- AI WORKFORCE (PHASE 7) ---
+export async function getChiefOfStaffBrief() {
+  const response = await API.get('/ai/chief-of-staff');
+  return response.data;
+}
+
+export async function getDailySdrRecommendations() {
+  const response = await API.get('/ai/sdr/daily');
+  return response.data;
+}
+
+export async function getRevenueBriefing() {
+  const response = await API.get('/ai/revenue/briefing');
+  return response.data;
+}
+
+export async function getProposalStrategy(leadId) {
+  const response = await API.get(`/ai/proposal-strategy/${leadId}`);
+  return response.data;
+}
+
+export async function getProjectRisks() {
+  const response = await API.get('/ai/projects/risk');
+  return response.data;
+}
+
+export async function getAccountGrowthOpportunities() {
+  const response = await API.get('/ai/account-growth');
+  return response.data;
+}
+
+export async function triggerAiOrchestration() {
+  const response = await API.post('/ai/orchestrate');
+  return response.data;
+}
+
 export default API;

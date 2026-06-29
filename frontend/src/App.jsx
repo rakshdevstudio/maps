@@ -12,6 +12,7 @@ import Projects from "@/pages/Projects";
 import Keywords from "@/pages/Keywords";
 import Settings from "@/pages/Settings";
 import ProposalViewer from "@/pages/ProposalViewer";
+import FounderMode from "@/pages/FounderMode";
 
 const TABS = [
   { id: "today", label: "Today" },
@@ -22,6 +23,7 @@ const TABS = [
   { id: "leads", label: "Leads" },
   { id: "operations", label: "Operations" },
   { id: "keywords", label: "Keywords" },
+  { id: "founder-mode", label: "Founder Mode" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -33,6 +35,7 @@ function renderTab(activeTab) {
   if (activeTab === "leads") return <Leads />;
   if (activeTab === "operations") return <Dashboard />;
   if (activeTab === "keywords") return <Keywords />;
+  if (activeTab === "founder-mode") return <FounderMode />;
   if (activeTab === "settings") return <Settings />;
   return <Today />;
 }

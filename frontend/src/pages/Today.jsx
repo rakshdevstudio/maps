@@ -1,103 +1,79 @@
 import { useEffect, useState } from "react";
-import { Clock, Phone, MessageSquare, CalendarCheck, AlertTriangle, ExternalLink, ArrowRight } from "lucide-react";
-import { getTodayView, getPipelineForecast } from "@/services/api";
+import { Sparkles, Target, AlertTriangle, TrendingUp, CheckCircle, Activity, Box, ArrowRight } from "lucide-react";
+import { 
+  getChiefOfStaffBrief, 
+  getDailySdrRecommendations, 
+  getProjectRisks, 
+  getAccountGrowthOpportunities 
+} from "@/services/api";
 import LeadDetail from "@/components/LeadDetail";
 import { useLeads } from "@/hooks/useLeads";
 
-const HEALTH_COLORS = {
-  Healthy: "emerald",
-  Warm: "amber",
-  "At Risk": "orange",
-  Critical: "rose",
-};
-
-function HealthBadge({ status }) {
-  const color = HEALTH_COLORS[status] || "slate";
+function AIBriefingCard({ brief }) {
+  if (!brief) return null;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border border-${color}-500/30 bg-${color}-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-${color}-400`}>
-      <span className={`h-1.5 w-1.5 rounded-full bg-${color}-400`} />
-      {status}
-    </span>
-  );
-}
-
-function TodayCard({ item, onClick }) {
-  return (
-    <div
-      onClick={() => onClick(item.id)}
-      className="group cursor-pointer rounded-2xl border border-white/10 bg-white/[0.02] p-4 transition hover:border-white/20 hover:bg-white/[0.04]"
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-white truncate">{item.business_name}</h4>
-          <p className="mt-1 text-xs text-slate-500">{item.stage_label}</p>
-        </div>
-        <div className="ml-3 flex flex-col items-end gap-1.5">
-          {item.estimated_deal_size && (
-            <span className="text-sm font-bold text-emerald-400">{item.estimated_deal_size}</span>
-          )}
-          <HealthBadge status={item.deal_health_status} />
-        </div>
-      </div>
-      <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
-        {item.days_since_contact >= 0 && (
-          <span className={item.days_since_contact > 14 ? "text-rose-400 font-semibold" : ""}>
-            {item.days_since_contact}d since contact
-          </span>
-        )}
-        {item.next_action && (
-          <span className="flex items-center gap-1 text-amber-400">
-            <ArrowRight className="h-3 w-3" /> {item.next_action}
-          </span>
-        )}
-        {item.business_phone && (
-          <a href={`tel:${item.business_phone}`} onClick={e => e.stopPropagation()} className="hover:text-cyan-300">
-            {item.business_phone}
-          </a>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Section({ icon: Icon, title, count, color, children }) {
-  if (!children || (Array.isArray(children) && children.length === 0)) return null;
-  return (
-    <div>
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`rounded-xl bg-${color}-500/10 p-2.5 border border-${color}-500/20`}>
-          <Icon className={`h-5 w-5 text-${color}-400`} />
+    <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/5 p-6 relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-32 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
+      <div className="flex items-center gap-3 mb-6 relative z-10">
+        <div className="p-2 bg-indigo-500/20 rounded-lg">
+          <Sparkles className="h-6 w-6 text-indigo-400" />
         </div>
         <div>
-          <h3 className="text-base font-semibold text-white">{title}</h3>
-          <p className="text-xs text-slate-500">{count} item{count !== 1 ? "s" : ""}</p>
+          <h2 className="text-xl font-bold text-white">Executive Briefing</h2>
+          <p className="text-xs text-indigo-300">Autonomous AI Intelligence</p>
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {children}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">What Happened</h3>
+            <p className="text-slate-200">{brief.what_happened}</p>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">What Matters</h3>
+            <p className="text-slate-200">{brief.what_matters}</p>
+          </div>
+        </div>
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-rose-400 uppercase tracking-wider mb-2">What Is Blocked</h3>
+            <p className="text-slate-200">{brief.what_is_blocked}</p>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-2">Next Actions</h3>
+            <p className="text-slate-200">{brief.what_should_happen_next}</p>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function Today() {
-  const { fetchLeadDetails, updateLead, logActivity } = useLeads();
-  const [data, setData] = useState(null);
-  const [forecast, setForecast] = useState(null);
+  const { fetchLeadDetails, updateLead } = useLeads();
   const [loading, setLoading] = useState(true);
+  const [brief, setBrief] = useState(null);
+  const [sdrRecs, setSdrRecs] = useState([]);
+  const [risks, setRisks] = useState([]);
+  const [growth, setGrowth] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [todayData, forecastData] = await Promise.all([
-          getTodayView(),
-          getPipelineForecast(),
+        const [briefData, sdrData, riskData, growthData] = await Promise.all([
+          getChiefOfStaffBrief(),
+          getDailySdrRecommendations(),
+          getProjectRisks(),
+          getAccountGrowthOpportunities()
         ]);
-        setData(todayData);
-        setForecast(forecastData);
+        setBrief(briefData);
+        setSdrRecs(sdrData || []);
+        setRisks(riskData || []);
+        setGrowth(growthData || []);
       } catch (e) {
-        console.error(e);
+        console.error("Failed to load AI intelligence", e);
       } finally {
         setLoading(false);
       }
@@ -105,104 +81,112 @@ export default function Today() {
     load();
   }, []);
 
-  const handleCardClick = async (leadId) => {
+  const handleLeadClick = async (leadId) => {
     const detail = await fetchLeadDetails(leadId);
     setSelectedLead(detail);
   };
 
-  const handleUpdate = async (leadId, updates) => {
-    await updateLead(leadId, updates);
-    if (selectedLead?.id === leadId) {
-      const detail = await fetchLeadDetails(leadId);
-      setSelectedLead(detail);
-    }
-  };
-
   if (loading) {
-    return <div className="flex items-center justify-center py-32 text-slate-500">Loading today's priorities...</div>;
+    return <div className="flex items-center justify-center py-32 text-slate-500">Compiling AI Intelligence...</div>;
   }
 
-  const summary = data?.summary || {};
-  const totalActions = (summary.overdue_count || 0) + (summary.calls_count || 0) + (summary.followups_count || 0) + (summary.meetings_count || 0);
-
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <p className="text-xs uppercase tracking-[0.24em] text-amber-400/70">Sales Execution</p>
-        <h2 className="mt-2 text-3xl font-semibold text-white">Today</h2>
-        <p className="mt-2 text-sm text-slate-400">
-          {totalActions > 0
-            ? `${totalActions} action${totalActions !== 1 ? "s" : ""} require your attention.`
-            : "All clear — no urgent actions today."}
-        </p>
-      </div>
+    <div className="space-y-10">
+      
+      {/* 1. The Executive Brief */}
+      <AIBriefingCard brief={brief} />
 
-      {/* Summary Bar */}
-      {forecast && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-            <p className="text-xs text-slate-500 uppercase tracking-wider">Pipeline</p>
-            <p className="mt-1.5 text-2xl font-bold text-white">{forecast.pipeline_value}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* 2. Top Opportunities (SDR) */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 mb-6">
+            <Target className="h-5 w-5 text-emerald-400" />
+            <h3 className="text-lg font-semibold text-white">Top Opportunities</h3>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-            <p className="text-xs text-emerald-500 uppercase tracking-wider">Likely Revenue</p>
-            <p className="mt-1.5 text-2xl font-bold text-emerald-400">{forecast.likely_revenue}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-            <p className="text-xs text-rose-500 uppercase tracking-wider">At Risk</p>
-            <p className="mt-1.5 text-2xl font-bold text-rose-400">{forecast.at_risk_revenue}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-            <p className="text-xs text-cyan-500 uppercase tracking-wider">Won Revenue</p>
-            <p className="mt-1.5 text-2xl font-bold text-cyan-400">{forecast.won_revenue}</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-            <p className="text-xs text-indigo-500 uppercase tracking-wider">Win Rate</p>
-            <p className="mt-1.5 text-2xl font-bold text-indigo-400">{forecast.win_rate}</p>
-          </div>
+          {sdrRecs.length === 0 ? (
+            <p className="text-slate-500 text-sm">No high-priority targets currently identified.</p>
+          ) : (
+            sdrRecs.map(rec => (
+              <div 
+                key={rec.id} 
+                onClick={() => handleLeadClick(rec.lead_id)}
+                className="cursor-pointer rounded-xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center h-8 w-8 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-sm">
+                      {rec.score}
+                    </span>
+                    <span className="text-white font-medium">Lead #{rec.lead_id}</span>
+                  </div>
+                  <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded-full uppercase tracking-wider font-semibold">
+                    Target
+                  </span>
+                </div>
+                <p className="text-sm text-slate-300 mb-3">{rec.reason}</p>
+                <div className="text-xs text-emerald-400 flex items-center gap-1 font-medium">
+                  <ArrowRight className="h-3 w-3" /> {rec.recommended_action}
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      )}
 
-      {/* Action Sections */}
-      <div className="space-y-10">
-        <Section icon={AlertTriangle} title="Overdue Leads" count={data?.overdue?.length || 0} color="rose">
-          {data?.overdue?.map(item => <TodayCard key={item.id} item={item} onClick={handleCardClick} />)}
-        </Section>
-
-        <Section icon={Phone} title="Calls Due Today" count={data?.calls_due?.length || 0} color="amber">
-          {data?.calls_due?.map(item => <TodayCard key={item.id} item={item} onClick={handleCardClick} />)}
-        </Section>
-
-        <Section icon={MessageSquare} title="Follow-ups Due" count={data?.followups_due?.length || 0} color="blue">
-          {data?.followups_due?.map(item => <TodayCard key={item.id} item={item} onClick={handleCardClick} />)}
-        </Section>
-
-        <Section icon={CalendarCheck} title="Meetings Scheduled" count={data?.meetings_scheduled?.length || 0} color="purple">
-          {data?.meetings_scheduled?.map(item => <TodayCard key={item.id} item={item} onClick={handleCardClick} />)}
-        </Section>
-
-        <Section icon={Clock} title="Critical Deals" count={data?.critical_deals?.length || 0} color="orange">
-          {data?.critical_deals?.map(item => <TodayCard key={item.id} item={item} onClick={handleCardClick} />)}
-        </Section>
-      </div>
-
-      {totalActions === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-white/10 bg-white/[0.02] py-16 text-center">
-          <div className="rounded-2xl bg-emerald-500/10 p-4">
-            <CalendarCheck className="h-8 w-8 text-emerald-400" />
+        {/* 3. Operational Risks (Projects + Deals) */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 mb-6">
+            <AlertTriangle className="h-5 w-5 text-rose-400" />
+            <h3 className="text-lg font-semibold text-white">Active Risks</h3>
           </div>
-          <p className="mt-4 text-lg font-medium text-white">You're all caught up.</p>
-          <p className="mt-2 text-sm text-slate-500">No overdue contacts, no pending calls, no critical deals.</p>
+          {risks.length === 0 ? (
+            <p className="text-slate-500 text-sm">No critical operational risks detected.</p>
+          ) : (
+            risks.map(risk => (
+              <div key={risk.id} className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-white font-medium flex items-center gap-2">
+                    <Box className="h-4 w-4 text-slate-400" /> Project #{risk.project_id}
+                  </span>
+                  <span className="text-[10px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">
+                    {risk.risk_level}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-300 mb-2">{risk.slipping_reason}</p>
+                <div className="text-xs text-rose-400 flex items-center gap-1 font-medium">
+                  <ArrowRight className="h-3 w-3" /> {risk.priority_action}
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* 4. Account Growth */}
+          <div className="flex items-center gap-3 mb-6 mt-10">
+            <TrendingUp className="h-5 w-5 text-cyan-400" />
+            <h3 className="text-lg font-semibold text-white">Growth Opportunities</h3>
+          </div>
+          {growth.length === 0 ? (
+            <p className="text-slate-500 text-sm">No upsell opportunities currently detected.</p>
+          ) : (
+            growth.map(opp => (
+              <div key={opp.id} className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-white font-medium">{opp.opportunity_type}</span>
+                  <span className="text-xs text-cyan-400 font-bold">{opp.confidence_score}% Match</span>
+                </div>
+                <p className="text-sm text-slate-300 mb-2">{opp.rationale}</p>
+                <p className="text-xs text-emerald-400 font-medium">{opp.expected_outcome}</p>
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </div>
 
       {selectedLead && (
         <LeadDetail
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
-          onUpdate={handleUpdate}
-          logActivity={logActivity}
+          onUpdate={(id, data) => updateLead(id, data)}
+          logActivity={() => {}}
         />
       )}
     </div>

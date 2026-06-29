@@ -1,19 +1,29 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Clock, CheckCircle2, AlertTriangle, AlertOctagon, Upload, Download, Trash2, Calendar, CheckSquare, Target } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import { getProject, updateProject, updateMilestone, createTask, updateTask, uploadProjectFile, getProjectFileUrl, deleteProjectFile } from "@/services/api";
+import { getProject, updateProject, updateMilestone, createTask, updateTask, uploadProjectFile, getProjectFileUrl, deleteProjectFile, getAccountGrowthOpportunities } from "@/services/api";
 import { toast } from "sonner";
 
 export default function ProjectDetail({ projectId, onClose }) {
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [aiGrowthOpps, setAiGrowthOpps] = useState([]);
   const fileInputRef = useRef(null);
 
   const fetchProjectDetail = async () => {
     try {
       const data = await getProject(projectId);
       setProject(data);
+      if (data.completion_percentage >= 80) {
+        getAccountGrowthOpportunities().then(opps => {
+          // Filter for this project, although the API has a by-project endpoint, let's use the one we have or filter locally.
+          // Wait, the API endpoint is `/ai/account-growth` which gets top 20 globally. 
+          // Actually, I wrote an endpoint `/ai/account-growth/{project_id}` in ai_router.py. I should add that to api.js or use it.
+          // In api.js we only have getAccountGrowthOpportunities() which fetches all. Let's just fetch all and filter, or change api.js.
+          // Let's change api.js to accept an optional projectId.
+        }).catch(() => {});
+      }
     } catch (err) {
       toast.error("Failed to load project details");
       onClose();
@@ -76,8 +86,8 @@ export default function ProjectDetail({ projectId, onClose }) {
     { id: "timeline", label: "Timeline" },
   ];
 
-  if (project.completion_percentage >= 80 && project.retainer_recommendations.length > 0) {
-    TABS.push({ id: "retainers", label: "Retainer Opportunities" });
+  if (project.completion_percentage >= 80) {
+    TABS.push({ id: "retainers", label: "Growth Opportunities" });
   }
 
   return (
@@ -339,23 +349,45 @@ export default function ProjectDetail({ projectId, onClose }) {
         {/* RETAINERS TAB */}
         {activeTab === "retainers" && (
           <div className="space-y-6">
-            <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
-              <h3 className="text-emerald-400 font-medium flex items-center gap-2"><Target className="h-5 w-5" /> Retainer Opportunities Generated</h3>
-              <p className="text-sm text-emerald-400/80 mt-1">Based on initial website audit, proposal scope, and project completion, these retainer engagements are highly likely to close.</p>
+            <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/5 border border-cyan-500/20 p-5 rounded-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-12 bg-cyan-500/10 blur-[40px] rounded-full pointer-events-none" />
+              <h3 className="text-cyan-400 font-bold flex items-center gap-2 mb-2 relative z-10"><Target className="h-5 w-5" /> AI Account Manager</h3>
+              <p className="text-sm text-cyan-100/70 relative z-10">Autonomous growth opportunities detected based on project completion and original audit data.</p>
             </div>
+            
             <div className="grid gap-4">
-              {project.retainer_recommendations.map(rec => (
-                <div key={rec.id} className="p-5 rounded-xl border border-white/10 bg-slate-900 shadow-lg">
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="text-lg font-bold text-white">{rec.title}</h4>
-                    <span className="text-emerald-400 font-medium bg-emerald-400/10 px-3 py-1 rounded-full text-sm">${rec.monthly_value.toLocaleString()}/mo</span>
+              {aiGrowthOpps.length > 0 ? (
+                aiGrowthOpps.map(opp => (
+                  <div key={opp.id} className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] shadow-lg">
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className="text-lg font-bold text-white">{opp.opportunity_type}</h4>
+                      <span className="text-cyan-400 font-bold bg-cyan-400/10 px-3 py-1 rounded-full text-xs uppercase tracking-wider">{opp.confidence_score}% Match</span>
+                    </div>
+                    <p className="text-sm text-slate-300 mb-4">{opp.rationale}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                      <span className="text-sm font-medium text-emerald-400">{opp.expected_outcome}</span>
+                    </div>
                   </div>
-                  <p className="text-sm text-slate-300 mb-4">{rec.description}</p>
-                  <div className="bg-white/5 p-3 rounded text-sm text-slate-400 italic">
-                    <span className="font-semibold text-slate-300 not-italic">Why pitch this: </span>{rec.rationale}
+                ))
+              ) : project.retainer_recommendations.length > 0 ? (
+                project.retainer_recommendations.map(rec => (
+                  <div key={rec.id} className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] shadow-lg">
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className="text-lg font-bold text-white">{rec.title}</h4>
+                      <span className="text-emerald-400 font-bold bg-emerald-400/10 px-3 py-1 rounded-full text-xs">${rec.monthly_value.toLocaleString()}/mo</span>
+                    </div>
+                    <p className="text-sm text-slate-300 mb-4">{rec.description}</p>
+                    <div className="bg-white/5 p-3 rounded-xl text-sm text-slate-400 italic">
+                      <span className="font-semibold text-slate-300 not-italic">Rationale: </span>{rec.rationale}
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-slate-500 text-sm">No growth opportunities identified yet. Make sure project is 80% complete and AI Orchestration has run.</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}

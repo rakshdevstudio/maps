@@ -1,16 +1,27 @@
-import { Database, LayoutDashboard, Radar, Settings, Users, Crosshair, CalendarCheck, BarChart3, Wrench, FileText, FolderKanban } from "lucide-react";
+import { 
+  Users, 
+  BarChart3, 
+  Settings, 
+  ListTodo, 
+  CalendarCheck2, 
+  Target, 
+  FileText,
+  FolderKanban,
+  Zap,
+  Radar
+} from "lucide-react";
 
 
 const NAV_ITEMS = [
-  { id: "today", icon: CalendarCheck, label: "Today" },
-  { id: "executive", icon: BarChart3, label: "Executive" },
-  { id: "command-center", icon: Crosshair, label: "Command Center" },
-  { id: "proposals", icon: FileText, label: "Proposals" },
-  { id: "projects", icon: FolderKanban, label: "Projects" },
-  { id: "leads", icon: Users, label: "Leads" },
-  { id: "operations", icon: Wrench, label: "Operations" },
-  { id: "keywords", icon: Database, label: "Keywords" },
-  { id: "settings", icon: Settings, label: "Settings" },
+  { id: "today", label: "Today", icon: CalendarCheck2 },
+  { id: "founder-mode", label: "Founder Mode", icon: Zap },
+  { id: "executive", label: "Executive", icon: BarChart3 },
+  { id: "operations", label: "Command Center", icon: Target },
+  { id: "proposals", label: "Proposals", icon: FileText },
+  { id: "projects", label: "Projects", icon: FolderKanban },
+  { id: "leads", label: "Leads", icon: Users },
+  { id: "keywords", label: "Keywords", icon: ListTodo },
+  { id: "settings", label: "Settings", icon: Settings },
 ];
 
 

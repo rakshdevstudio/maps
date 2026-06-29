@@ -385,3 +385,84 @@ class RetainerRecommendation(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="retainer_recommendations")
+
+
+# ── Phase 7: Autonomous AI Workforce ─────────────────────────────────
+
+class AIDailySdrRecommendation(Base):
+    __tablename__ = "ai_daily_sdr_recommendations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    score = Column(Integer, nullable=False)
+    reason = Column(Text, nullable=False)
+    recommended_action = Column(Text, nullable=False)
+    generated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    lead = relationship("Lead")
+
+
+class AIRevenueBriefing(Base):
+    __tablename__ = "ai_revenue_briefings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pipeline_total = Column(Float, default=0)
+    likely_to_close = Column(Float, default=0)
+    risk_summary = Column(Text, nullable=False)
+    blocked_summary = Column(Text, nullable=False)
+    generated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class AIProposalStrategy(Base):
+    __tablename__ = "ai_proposal_strategy"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
+    recommended_package = Column(String, nullable=False)
+    recommended_investment = Column(Float, nullable=False)
+    recommended_angle = Column(Text, nullable=False)
+    positioning = Column(Text, nullable=False)
+    generated_at = Column(DateTime, default=datetime.utcnow)
+
+    lead = relationship("Lead")
+
+
+class AIProjectRiskReport(Base):
+    __tablename__ = "ai_project_risk_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    risk_level = Column(String, nullable=False)  # low, medium, high, critical
+    slipping_reason = Column(Text, nullable=True)
+    overdue_tasks_summary = Column(Text, nullable=True)
+    blocked_milestones_summary = Column(Text, nullable=True)
+    priority_action = Column(Text, nullable=False)
+    generated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    project = relationship("Project")
+
+
+class AIAccountGrowthOpportunity(Base):
+    __tablename__ = "ai_account_growth_opportunities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False, index=True)
+    opportunity_type = Column(String, nullable=False)
+    rationale = Column(Text, nullable=False)
+    expected_outcome = Column(Text, nullable=False)
+    confidence_score = Column(Integer, nullable=False)
+    generated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    project = relationship("Project")
+
+
+class AIExecutiveBrief(Base):
+    __tablename__ = "ai_executive_briefs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    what_happened = Column(Text, nullable=False)
+    what_matters = Column(Text, nullable=False)
+    what_is_blocked = Column(Text, nullable=False)
+    what_should_happen_next = Column(Text, nullable=False)
+    what_deserves_attention = Column(Text, nullable=False)
+    generated_at = Column(DateTime, default=datetime.utcnow, index=True)
